@@ -1,0 +1,1768 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <title>Movie Log</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      :root {
+        --primary: #1e293b;
+      }
+      html,
+      body {
+        width: 100%;
+        max-width: 100%;
+        overflow-x: hidden;
+      }
+      body {
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans",
+          "Noto Sans JP", sans-serif;
+        background-color: #eeeeee;
+      }
+      #formView,
+      #formView main,
+      #formView main > *,
+      #formView .flex {
+        min-width: 0;
+        max-width: 100%;
+      }
+      #formView input,
+      #formView textarea,
+      #formView select {
+        min-width: 0;
+        max-width: 100%;
+        box-sizing: border-box;
+      }
+      .star {
+        cursor: pointer;
+        transition:
+          color 0.15s,
+          transform 0.15s;
+        font-size: 1.75rem;
+        line-height: 1;
+        user-select: none;
+        color: #d1d5db;
+      }
+      .star.active {
+        color: #f59e0b;
+      }
+      .star:active {
+        transform: scale(1.15);
+      }
+      input,
+      textarea,
+      select {
+        font-size: 16px !important; /* スマホでズーム防止 */
+      }
+      .line-clamp-2 {
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+      }
+      .line-clamp-3 {
+        display: -webkit-box;
+        -webkit-line-clamp: 3;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+      }
+      .card-shadow {
+        box-shadow:
+          0 1px 3px rgba(0, 0, 0, 0.08),
+          0 1px 2px rgba(0, 0, 0, 0.06);
+      }
+      .fab {
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+      }
+      .tab-active {
+        background-color: #1e293b;
+        color: white;
+      }
+      .tab-inactive {
+        background-color: #e2e8f0;
+        color: #64748b;
+      }
+
+      /* 未選択の月入力は、PC/スマホとも独自の「年月を選択」を表示 */
+      #watchDateInput.date-empty::-webkit-datetime-edit {
+        color: transparent;
+      }
+      #watchDateInput.date-empty::-webkit-date-and-time-value {
+        color: transparent;
+      }
+    </style>
+  </head>
+  <body class="min-h-screen pb-24">
+    <!-- ========== 一覧画面 ========== -->
+    <div id="listView">
+      <!-- ヘッダー -->
+      <header class="sticky top-0 z-20 bg-white border-b border-gray-200">
+        <div
+          class="max-w-lg mx-auto px-4 py-3 flex items-center gap-3"
+        >
+          <h1 class="text-2xl sm:text-3xl font-bold text-slate-800 tracking-tight shrink-0">
+            Movie Log
+          </h1>
+
+          <!-- 視聴状況の件数（情報表示のみ・クリック不可） -->
+          <div id="statusCounts" class="flex-1 flex items-center justify-center gap-2 sm:gap-4 text-center min-w-0" aria-label="視聴状況の件数">
+            <div class="min-w-0">
+              <div id="watchedCount" class="text-sm sm:text-base font-bold text-slate-800 leading-tight">0</div>
+              <div class="text-[9px] sm:text-[10px] text-slate-500 whitespace-nowrap leading-tight mt-0.5">視聴済</div>
+            </div>
+            <div class="min-w-0">
+              <div id="watchingCount" class="text-sm sm:text-base font-bold text-slate-800 leading-tight">0</div>
+              <div class="text-[9px] sm:text-[10px] text-slate-500 whitespace-nowrap leading-tight mt-0.5">視聴中</div>
+            </div>
+            <div class="min-w-0">
+              <div id="unwatchedCount" class="text-sm sm:text-base font-bold text-slate-800 leading-tight">0</div>
+              <div class="text-[9px] sm:text-[10px] text-slate-500 whitespace-nowrap leading-tight mt-0.5">未視聴</div>
+            </div>
+          </div>
+
+          <button
+            id="searchToggleBtn"
+            class="p-2 text-slate-600 hover:bg-gray-100 rounded-full shrink-0"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-5 w-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+              />
+            </svg>
+          </button>
+        </div>
+        <!-- 検索バー -->
+        <div id="searchBar" class="hidden max-w-lg mx-auto px-4 pb-3">
+          <input
+            id="searchInput"
+            type="text"
+            placeholder="タイトルで検索..."
+            class="w-full border border-gray-300 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-slate-400"
+          />
+        </div>
+        <!-- 並び替え・ジャンル -->
+        <div class="max-w-lg mx-auto px-4 pb-3 grid grid-cols-2 gap-2">
+          <select
+            id="sortSelect"
+            class="border border-gray-300 rounded-xl px-3 py-2.5 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-slate-400"
+          >
+            <option value="ratingDesc">評価が高い順</option>
+            <option value="ratingAsc">評価が低い順</option>
+            <option value="watchDateDesc">視聴日が新しい順</option>
+            <option value="watchDateAsc">視聴日が古い順</option>
+            <option value="yearDesc">公開年が新しい順</option>
+            <option value="yearAsc">公開年が古い順</option>
+            <option value="titleAsc">タイトル順</option>
+            <option value="seriesAsc">シリーズまとめ</option>
+          </select>
+
+          <select
+            id="genreFilter"
+            class="border border-gray-300 rounded-xl px-3 py-2.5 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-slate-400"
+          >
+            <option value="">ジャンル：すべて</option>
+            <option value="アクション">アクション</option>
+            <option value="アドベンチャー">アドベンチャー</option>
+            <option value="アニメ">アニメ</option>
+            <option value="音楽">音楽</option>
+            <option value="コメディ">コメディ</option>
+            <option value="ドキュメンタリー">ドキュメンタリー</option>
+            <option value="ファンタジー">ファンタジー</option>
+            <option value="ホラー">ホラー</option>
+            <option value="ミステリー">ミステリー</option>
+            <option value="サスペンス">サスペンス</option>
+            <option value="恋愛">恋愛</option>
+            <option value="SF">SF</option>
+            <option value="ヒューマン系">ヒューマン系</option>
+            <option value="ドラマ">ドラマ</option>
+          </select>
+        </div>
+
+        <!-- 詳細検索 -->
+        <div class="max-w-lg mx-auto px-4 pb-3">
+          <button id="detailSearchToggle" type="button" class="w-full px-4 py-2.5 rounded-xl bg-slate-100 text-slate-700 font-medium hover:bg-slate-200">⚙ 詳細検索</button>
+          <div id="detailSearchPanel" class="hidden mt-2 p-4 bg-white rounded-2xl border border-gray-200">
+            <p class="text-sm font-semibold text-slate-700 mb-2">視聴状況</p>
+            <div class="flex gap-2 overflow-x-auto">
+              <button data-status="all" class="tab-btn tab-active px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap">すべて</button>
+              <button data-status="watched" class="tab-btn tab-inactive px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap">視聴済</button>
+              <button data-status="watching" class="tab-btn tab-inactive px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap">視聴中</button>
+              <button data-status="unwatched" class="tab-btn tab-inactive px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap">未視聴</button>
+            </div>
+
+            <div class="mt-4">
+              <p class="block text-sm font-semibold text-slate-700 mb-2">お気に入り</p>
+              <button id="favoriteFilterBtn" type="button" aria-pressed="false" class="tab-inactive px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap">♡ お気に入りのみ</button>
+            </div>
+
+            <div class="mt-4">
+              <label for="ratingFilter" class="block text-sm font-semibold text-slate-700 mb-2">評価</label>
+              <select id="ratingFilter" class="w-full border border-gray-300 rounded-xl px-3 py-2.5 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-slate-400">
+                <option value="">評価：すべて</option>
+                <option value="5">★5</option>
+                <option value="4">★4</option>
+                <option value="3">★3</option>
+                <option value="2">★2</option>
+                <option value="1">★1</option>
+              </select>
+            </div>
+
+            <div class="mt-4">
+              <label for="yearFilter" class="block text-sm font-semibold text-slate-700 mb-2">公開年</label>
+              <select id="yearFilter" class="w-full border border-gray-300 rounded-xl px-3 py-2.5 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-slate-400">
+                <option value="">公開年：すべて</option>
+              </select>
+            </div>
+
+            <div class="mt-4 relative">
+              <label for="directorFilter" class="block text-sm font-semibold text-slate-700 mb-2">監督</label>
+              <input id="directorFilter" type="text" autocomplete="off" placeholder="監督名を入力" class="w-full border border-gray-300 rounded-xl px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-slate-400" />
+              <div id="directorSuggestions" class="hidden absolute left-0 right-0 top-full mt-1 z-40 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden"></div>
+            </div>
+
+            <div class="mt-4 relative">
+              <label for="castFilter" class="block text-sm font-semibold text-slate-700 mb-2">出演者</label>
+              <input id="castFilter" type="text" autocomplete="off" placeholder="出演者名を入力" class="w-full border border-gray-300 rounded-xl px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-slate-400" />
+              <div id="castSuggestions" class="hidden absolute left-0 right-0 top-full mt-1 z-40 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden"></div>
+            </div>
+
+            <button id="clearDetailSearchBtn" type="button" class="mt-4 w-full border border-gray-300 text-slate-600 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50">条件をクリア</button>
+          </div>
+        </div>
+
+      </header>
+
+      <!-- カード一覧 -->
+      <main class="max-w-lg mx-auto px-3 py-4">
+        <div id="movieGrid" class="grid grid-cols-3 gap-3">
+          <!-- カードがここに入る -->
+        </div>
+        <div id="emptyState" class="hidden text-center py-20 text-gray-400">
+          <p class="text-5xl mb-3">🎬</p>
+          <p class="text-base">まだ作品がありません</p>
+          <p class="text-sm mt-1">右下の ＋ から追加してみよう</p>
+        </div>
+      </main>
+
+      <!-- データ管理 -->
+      <section class="max-w-lg mx-auto px-4 pb-4">
+        <div class="bg-white border border-gray-200 rounded-2xl p-4">
+          <p class="text-sm font-semibold text-slate-700 mb-1">データ管理</p>
+          <p class="text-xs text-slate-500 mb-3">登録した作品データをファイルに保存・復元できます。</p>
+          <div class="grid grid-cols-2 gap-2">
+            <button id="backupSaveBtn" type="button" class="border border-gray-300 bg-white text-slate-700 py-2.5 px-3 rounded-xl text-sm font-medium active:bg-gray-50">バックアップを保存</button>
+            <button id="backupRestoreBtn" type="button" class="border border-gray-300 bg-white text-slate-700 py-2.5 px-3 rounded-xl text-sm font-medium active:bg-gray-50">バックアップから復元</button>
+          </div>
+          <input id="backupFileInput" type="file" accept="application/json,.json" class="hidden" />
+        </div>
+      </section>
+
+      <!-- FAB 追加ボタン -->
+      <button
+        id="addFab"
+        class="fab fixed bottom-6 right-6 w-14 h-14 bg-slate-800 text-white rounded-full flex items-center justify-center text-3xl active:bg-slate-700 z-30"
+      >
+        +
+      </button>
+    </div>
+
+    <!-- ========== 詳細画面 ========== -->
+    <div id="detailView" class="hidden">
+      <header class="sticky top-0 z-20 bg-white border-b border-gray-200">
+        <div class="max-w-lg mx-auto px-4 py-3 flex items-center gap-3">
+          <button
+            id="detailBackBtn"
+            class="p-1 text-slate-600 hover:bg-gray-100 rounded-full"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-6 w-6"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M15 19l-7-7 7-7"
+              />
+            </svg>
+          </button>
+          <h2 class="text-lg font-semibold text-slate-800 truncate">詳細</h2>
+        </div>
+      </header>
+
+      <main id="detailContent" class="max-w-lg mx-auto px-4 py-6">
+        <!-- 詳細内容がここに入る -->
+      </main>
+    </div>
+
+    <!-- ========== 登録・編集画面 ========== -->
+    <div id="formView" class="hidden">
+      <header class="sticky top-0 z-20 bg-white border-b border-gray-200">
+        <div
+          class="max-w-lg mx-auto px-4 py-3 flex items-center justify-between"
+        >
+          <div class="flex items-center gap-3">
+            <button
+              id="formBackBtn"
+              class="p-1 text-slate-600 hover:bg-gray-100 rounded-full"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-6 w-6"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M15 19l-7-7 7-7"
+                />
+              </svg>
+            </button>
+            <h2 id="formTitle" class="text-lg font-semibold text-slate-800">
+              新規登録
+            </h2>
+          </div>
+          <button
+            id="saveBtn"
+            class="bg-slate-800 text-white px-5 py-2 rounded-xl text-sm font-medium active:bg-slate-700"
+          >
+            保存
+          </button>
+        </div>
+      </header>
+
+      <main class="max-w-lg mx-auto px-4 py-6 space-y-5">
+        <!-- APIキー設定（初回のみ目立つ） -->
+        <div
+          id="apiKeySection"
+          class="bg-amber-50 border border-amber-200 rounded-xl p-4"
+        >
+          <label class="block text-sm font-medium text-amber-800 mb-1"
+            >TMDb APIキー</label
+          >
+          <div class="flex gap-2">
+            <input
+              id="apiKeyInput"
+              type="text"
+              placeholder="ここにAPIキーを入力"
+              class="flex-1 border border-amber-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-amber-400"
+            />
+            <button
+              id="saveApiKeyBtn"
+              class="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-medium active:bg-amber-700"
+            >
+              保存
+            </button>
+          </div>
+          <p class="text-xs text-amber-700 mt-2">
+            <a
+              href="https://www.themoviedb.org/settings/api"
+              target="_blank"
+              class="underline"
+              >ここから無料で取得</a
+            >（アカウント作成 → API → リクエスト）
+          </p>
+        </div>
+
+        <!-- タイトル + ポスター取得 -->
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1"
+            >タイトル</label
+          >
+          <div class="flex gap-2">
+            <input
+              id="titleInput"
+              type="text"
+              placeholder="例：ジュラシック・パーク"
+              class="flex-1 border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-slate-400"
+            />
+            <button
+              id="fetchBtn"
+              class="bg-indigo-600 text-white px-4 py-3 rounded-xl text-sm font-medium whitespace-nowrap active:bg-indigo-700"
+            >
+              ポスター取得
+            </button>
+          </div>
+          <p id="fetchStatus" class="text-sm mt-1.5 hidden"></p>
+        </div>
+
+        <!-- サムネイルプレビュー -->
+        <div id="posterPreview" class="hidden">
+          <img
+            id="previewImg"
+            src=""
+            alt="ポスター"
+            class="w-32 h-48 object-cover rounded-xl mx-auto shadow-md bg-gray-200"
+          />
+        </div>
+
+        <!-- あらすじ（プレビューのすぐ下） -->
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1"
+            >あらすじ</label
+          >
+          <textarea
+            id="synopsisInput"
+            rows="4"
+            placeholder="自動取得されます。手動で編集も可能です"
+            class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-slate-400"
+          ></textarea>
+        </div>
+
+        <!-- サムネイルURL -->
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1"
+            >サムネイル画像URL</label
+          >
+          <input
+            id="thumbnailInput"
+            type="text"
+            placeholder="自動取得 or 画像URLを貼り付け"
+            class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-slate-400"
+          />
+        </div>
+
+        <!-- 評価・お気に入り -->
+        <div class="grid grid-cols-[minmax(0,1fr)_auto] gap-4 items-end">
+          <div class="min-w-0">
+            <label class="block text-sm font-medium text-slate-700 mb-1">評価</label>
+            <div id="ratingStars" class="flex gap-1.5 sm:gap-2 py-1 whitespace-nowrap">
+              <span class="star" data-value="1">★</span>
+              <span class="star" data-value="2">★</span>
+              <span class="star" data-value="3">★</span>
+              <span class="star" data-value="4">★</span>
+              <span class="star" data-value="5">★</span>
+            </div>
+            <input type="hidden" id="ratingInput" value="0" />
+          </div>
+
+          <div class="text-center">
+            <label class="block text-sm font-medium text-slate-700 mb-1">お気に入り</label>
+            <button
+              id="favoriteInputBtn"
+              type="button"
+              onclick="toggleFormFavorite()"
+              aria-label="お気に入りに追加"
+              title="お気に入り"
+              class="h-11 min-w-14 border border-gray-300 rounded-xl px-4 bg-white text-slate-500 text-xl font-medium transition flex items-center justify-center"
+            >♡</button>
+          </div>
+        </div>
+
+        <!-- 視聴ステータス -->
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1"
+            >視聴ステータス</label
+          >
+          <select
+            id="statusInput"
+            class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-slate-400 bg-white"
+          >
+            <option value="watched">視聴済</option>
+            <option value="watching">視聴中</option>
+            <option value="unwatched">未視聴</option>
+          </select>
+        </div>
+
+        <!-- ジャンル -->
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-2"
+            >ジャンル</label
+          >
+          <div id="genreButtons" class="grid grid-cols-2 gap-2">
+            <button type="button" data-genre="アクション" class="genre-btn border border-gray-300 rounded-xl px-3 py-2.5 text-sm bg-white">アクション</button>
+            <button type="button" data-genre="アドベンチャー" class="genre-btn border border-gray-300 rounded-xl px-3 py-2.5 text-sm bg-white">アドベンチャー</button>
+            <button type="button" data-genre="アニメ" class="genre-btn border border-gray-300 rounded-xl px-3 py-2.5 text-sm bg-white">アニメ</button>
+            <button type="button" data-genre="音楽" class="genre-btn border border-gray-300 rounded-xl px-3 py-2.5 text-sm bg-white">音楽</button>
+            <button type="button" data-genre="コメディ" class="genre-btn border border-gray-300 rounded-xl px-3 py-2.5 text-sm bg-white">コメディ</button>
+            <button type="button" data-genre="ドキュメンタリー" class="genre-btn border border-gray-300 rounded-xl px-3 py-2.5 text-sm bg-white">ドキュメンタリー</button>
+            <button type="button" data-genre="ファンタジー" class="genre-btn border border-gray-300 rounded-xl px-3 py-2.5 text-sm bg-white">ファンタジー</button>
+            <button type="button" data-genre="ホラー" class="genre-btn border border-gray-300 rounded-xl px-3 py-2.5 text-sm bg-white">ホラー</button>
+            <button type="button" data-genre="ミステリー" class="genre-btn border border-gray-300 rounded-xl px-3 py-2.5 text-sm bg-white">ミステリー</button>
+            <button type="button" data-genre="サスペンス" class="genre-btn border border-gray-300 rounded-xl px-3 py-2.5 text-sm bg-white">サスペンス</button>
+            <button type="button" data-genre="恋愛" class="genre-btn border border-gray-300 rounded-xl px-3 py-2.5 text-sm bg-white">恋愛</button>
+            <button type="button" data-genre="SF" class="genre-btn border border-gray-300 rounded-xl px-3 py-2.5 text-sm bg-white">SF</button>
+            <button type="button" data-genre="ヒューマン系" class="genre-btn border border-gray-300 rounded-xl px-3 py-2.5 text-sm bg-white">ヒューマン系</button>
+            <button type="button" data-genre="ドラマ" class="genre-btn border border-gray-300 rounded-xl px-3 py-2.5 text-sm bg-white">ドラマ</button>
+          </div>
+          <input type="hidden" id="genreInput" value="" />
+          <p class="text-xs text-slate-500 mt-2">複数選択できます。もう一度押すと解除できます。</p>
+        </div>
+
+        <!-- 公開年 -->
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1"
+            >公開年</label
+          >
+          <select
+            id="yearInput"
+            class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-slate-400 bg-white"
+          >
+            <option value="">公開年を選択</option>
+          </select>
+        </div>
+
+        <!-- 上映時間 -->
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1"
+            >上映時間（分）</label
+          >
+          <input
+            id="runtimeInput"
+            type="text"
+            inputmode="numeric"
+            pattern="[0-9]*"
+            autocomplete="off"
+            placeholder="例：127"
+            class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-slate-400"
+          />
+        </div>
+
+        <!-- 制作国 -->
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1"
+            >制作国</label
+          >
+          <input
+            id="countryInput"
+            type="text"
+            placeholder="例：アメリカ"
+            class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-slate-400"
+          />
+        </div>
+
+        <!-- 監督 -->
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1"
+            >監督</label
+          >
+          <input
+            id="directorInput"
+            type="text"
+            placeholder="例：スティーヴン・スピルバーグ"
+            class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-slate-400"
+          />
+        </div>
+
+        <!-- 脚本 -->
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1"
+            >脚本</label
+          >
+          <input
+            id="writerInput"
+            type="text"
+            placeholder="例：マイケル・クライトン, デヴィッド・コープ"
+            class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-slate-400"
+          />
+        </div>
+
+        <!-- キャスト -->
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1"
+            >キャスト</label
+          >
+          <input
+            id="castInput"
+            type="text"
+            placeholder="例：サム・ニール, ローラ・ダーン, ジェフ・ゴールドブラム..."
+            class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-slate-400"
+          />
+        </div>
+
+        <!-- シリーズ -->
+        <div class="grid grid-cols-[minmax(0,1fr)_7rem] gap-3">
+          <div class="min-w-0">
+            <label class="block text-sm font-medium text-slate-700 mb-1">シリーズ名</label>
+            <input
+              id="seriesNameInput"
+              type="text"
+              placeholder="例：ジュラシック・パーク"
+              class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-slate-400"
+            />
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">シリーズ順</label>
+            <input
+              id="seriesOrderInput"
+              type="number"
+              min="1"
+              inputmode="numeric"
+              placeholder="例：1"
+              class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-slate-400"
+            />
+          </div>
+        </div>
+
+        <!-- 視聴日 -->
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1"
+            >視聴日</label
+          >
+          <div class="relative w-full min-w-0 box-border border border-gray-300 rounded-xl bg-white focus-within:ring-2 focus-within:ring-slate-400">
+            <input
+              id="watchDateInput"
+              type="month"
+              aria-label="視聴年月を選択"
+              class="block w-full min-w-0 max-w-full box-border border-0 rounded-xl px-4 py-3 bg-transparent focus:outline-none focus:ring-0"
+            />
+            <span id="watchDatePlaceholder" class="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">年月を選択</span>
+          </div>
+        </div>
+
+        <!-- コメント -->
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1"
+            >コメント（シェアされません）</label
+          >
+          <textarea
+            id="commentInput"
+            rows="4"
+            placeholder="自分だけの感想やメモを残せます"
+            class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-slate-400"
+          ></textarea>
+        </div>
+
+        <div class="h-8"></div>
+      </main>
+    </div>
+
+    <script>
+      // ===================== データ管理 =====================
+      let movies = JSON.parse(localStorage.getItem("movieLog_movies")) || [];
+      let currentStatus = "all";
+      let searchQuery = "";
+      let currentSort = "watchDateDesc";
+      let currentGenreFilter = "";
+      let currentRatingFilter = "";
+      let currentYearFilter = "";
+      let currentFavoriteFilter = "";
+      let currentDirectorFilter = "";
+      let currentCastFilter = "";
+      let selectedGenres = [];
+      let editingId = null;
+      let currentRating = 0;
+
+      // APIキー
+      let apiKey = localStorage.getItem("movieLog_apiKey") || "";
+
+      // ===================== 初期化 =====================
+      function init() {
+        // APIキーが既にあればセクションを小さくする
+        if (apiKey) {
+          document.getElementById("apiKeyInput").value = apiKey;
+          document.getElementById("apiKeySection").classList.add("opacity-75");
+        }
+
+        // イベント設定
+        setupEvents();
+        populateYearFilter();
+        populateYearInput();
+        renderList();
+      }
+
+      function setupEvents() {
+        // 詳細検索の開閉
+        const detailSearchToggle = document.getElementById("detailSearchToggle");
+        const detailSearchPanel = document.getElementById("detailSearchPanel");
+        detailSearchToggle.addEventListener("click", () => {
+          detailSearchPanel.classList.toggle("hidden");
+        });
+
+        // タブ
+        document.querySelectorAll(".tab-btn").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            currentStatus = btn.dataset.status;
+            document.querySelectorAll(".tab-btn").forEach((b) => {
+              b.classList.remove("tab-active");
+              b.classList.add("tab-inactive");
+            });
+            btn.classList.remove("tab-inactive");
+            btn.classList.add("tab-active");
+            renderList();
+          });
+        });
+
+        // 検索トグル
+        document
+          .getElementById("searchToggleBtn")
+          .addEventListener("click", () => {
+            const bar = document.getElementById("searchBar");
+            bar.classList.toggle("hidden");
+            if (!bar.classList.contains("hidden")) {
+              document.getElementById("searchInput").focus();
+            }
+          });
+
+        // 検索入力
+        document
+          .getElementById("searchInput")
+          .addEventListener("input", (e) => {
+            searchQuery = e.target.value.trim().toLowerCase();
+            renderList();
+          });
+
+        // 並び替え
+        document.getElementById("sortSelect").addEventListener("change", (e) => {
+          currentSort = e.target.value;
+          renderList();
+        });
+
+        // 評価絞り込み
+        document.getElementById("ratingFilter").addEventListener("change", (e) => {
+          currentRatingFilter = e.target.value;
+          renderList();
+        });
+
+        document.getElementById("yearFilter").addEventListener("change", (e) => {
+          currentYearFilter = e.target.value;
+          renderList();
+        });
+
+        document.getElementById("favoriteFilterBtn").addEventListener("click", () => {
+          currentFavoriteFilter = currentFavoriteFilter === "favorite" ? "" : "favorite";
+          updateFavoriteFilterButton();
+          renderList();
+        });
+
+        setupAutocomplete("directorFilter", "directorSuggestions", "director");
+        setupAutocomplete("castFilter", "castSuggestions", "cast");
+
+        document.getElementById("clearDetailSearchBtn").addEventListener("click", () => {
+          currentStatus = "all";
+          currentRatingFilter = "";
+          currentYearFilter = "";
+          currentFavoriteFilter = "";
+          currentDirectorFilter = "";
+          currentCastFilter = "";
+          document.getElementById("ratingFilter").value = "";
+          document.getElementById("yearFilter").value = "";
+          updateFavoriteFilterButton();
+          document.getElementById("directorFilter").value = "";
+          document.getElementById("castFilter").value = "";
+          document.querySelectorAll(".tab-btn").forEach((b) => {
+            b.classList.toggle("tab-active", b.dataset.status === "all");
+            b.classList.toggle("tab-inactive", b.dataset.status !== "all");
+          });
+          renderList();
+        });
+
+        // ジャンル絞り込み
+        document.getElementById("genreFilter").addEventListener("change", (e) => {
+          currentGenreFilter = e.target.value;
+          renderList();
+        });
+
+        // ジャンル選択ボタン
+        document.querySelectorAll(".genre-btn").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const genre = btn.dataset.genre;
+            if (selectedGenres.includes(genre)) {
+              selectedGenres = selectedGenres.filter((g) => g !== genre);
+            } else {
+              selectedGenres.push(genre);
+            }
+            updateGenreButtons();
+          });
+        });
+
+        // FAB
+        document
+          .getElementById("addFab")
+          .addEventListener("click", () => openForm());
+
+        // 戻るボタン
+        document
+          .getElementById("detailBackBtn")
+          .addEventListener("click", () => showView("list"));
+        document.getElementById("formBackBtn").addEventListener("click", () => {
+          if (confirm("編集内容を破棄しますか？")) {
+            showView("list");
+          }
+        });
+
+        // 保存
+        document.getElementById("saveBtn").addEventListener("click", saveMovie);
+
+        // APIキー保存
+        document
+          .getElementById("saveApiKeyBtn")
+          .addEventListener("click", () => {
+            const key = document.getElementById("apiKeyInput").value.trim();
+            if (key) {
+              apiKey = key;
+              localStorage.setItem("movieLog_apiKey", key);
+              document
+                .getElementById("apiKeySection")
+                .classList.add("opacity-75");
+              alert("APIキーを保存しました");
+            }
+          });
+
+        // 上映時間は数字のみ入力
+        document.getElementById("runtimeInput").addEventListener("input", (e) => {
+          e.target.value = e.target.value.replace(/\D/g, "");
+        });
+
+        // バックアップ
+        document.getElementById("backupSaveBtn").addEventListener("click", saveBackup);
+        document.getElementById("backupRestoreBtn").addEventListener("click", () => {
+          const fileInput = document.getElementById("backupFileInput");
+          fileInput.value = "";
+          fileInput.click();
+        });
+        document.getElementById("backupFileInput").addEventListener("change", restoreBackup);
+
+        // ポスター取得
+        document
+          .getElementById("fetchBtn")
+          .addEventListener("click", fetchPoster);
+
+        // 星評価
+        document.querySelectorAll("#ratingStars .star").forEach((star) => {
+          star.addEventListener("click", () => {
+            currentRating = parseInt(star.dataset.value);
+            document.getElementById("ratingInput").value = currentRating;
+            updateStars(currentRating);
+          });
+        });
+
+        // 視聴日：iPhone/Chromeでも未選択時に用途が分かる表示にする
+        const watchDateInput = document.getElementById("watchDateInput");
+        watchDateInput.addEventListener("input", updateWatchDatePlaceholder);
+        watchDateInput.addEventListener("change", updateWatchDatePlaceholder);
+
+        // サムネイル入力でプレビュー更新
+        document
+          .getElementById("thumbnailInput")
+          .addEventListener("input", (e) => {
+            const url = e.target.value.trim();
+            if (url) {
+              document.getElementById("previewImg").src = url;
+              document
+                .getElementById("posterPreview")
+                .classList.remove("hidden");
+            } else {
+              document.getElementById("posterPreview").classList.add("hidden");
+            }
+          });
+      }
+
+      function updateFavoriteFilterButton() {
+        const btn = document.getElementById("favoriteFilterBtn");
+        if (!btn) return;
+        const active = currentFavoriteFilter === "favorite";
+        btn.textContent = active ? "♥ お気に入りのみ" : "♡ お気に入りのみ";
+        btn.setAttribute("aria-pressed", active ? "true" : "false");
+        btn.classList.toggle("tab-active", active);
+        btn.classList.toggle("tab-inactive", !active);
+      }
+
+      function populateYearInput(selectedValue = "") {
+        const select = document.getElementById("yearInput");
+        if (!select) return;
+        const currentYear = new Date().getFullYear();
+        const oldestYear = 1900;
+        const value = String(selectedValue || select.value || "").slice(0, 4);
+        select.innerHTML = '<option value="">公開年を選択</option>';
+        for (let year = currentYear; year >= oldestYear; year--) {
+          const option = document.createElement("option");
+          option.value = String(year);
+          option.textContent = year + "年";
+          select.appendChild(option);
+        }
+        if (/^\d{4}$/.test(value)) {
+          if (![...select.options].some((o) => o.value === value)) {
+            const option = document.createElement("option");
+            option.value = value;
+            option.textContent = value + "年";
+            select.appendChild(option);
+          }
+          select.value = value;
+        }
+      }
+
+      // ===================== ビュー切り替え =====================
+      function showView(view) {
+        document.getElementById("listView").classList.add("hidden");
+        document.getElementById("detailView").classList.add("hidden");
+        document.getElementById("formView").classList.add("hidden");
+
+        if (view === "list") {
+          document.getElementById("listView").classList.remove("hidden");
+          renderList();
+        } else if (view === "detail") {
+          document.getElementById("detailView").classList.remove("hidden");
+        } else if (view === "form") {
+          document.getElementById("formView").classList.remove("hidden");
+        }
+        window.scrollTo(0, 0);
+      }
+
+      function populateYearFilter() {
+        const select = document.getElementById("yearFilter");
+        if (!select) return;
+        const selectedValue = currentYearFilter || select.value || "";
+        const currentYear = new Date().getFullYear();
+        const oldestYear = 1900;
+        const years = [];
+        for (let year = currentYear; year >= oldestYear; year--) {
+          years.push(String(year));
+        }
+        select.innerHTML = '<option value="">公開年：すべて</option>';
+        years.forEach((year) => {
+          const option = document.createElement("option");
+          option.value = year;
+          option.textContent = year + "年";
+          select.appendChild(option);
+        });
+        select.value = years.includes(selectedValue) ? selectedValue : "";
+        if (select.value !== selectedValue) currentYearFilter = "";
+      }
+
+      // ===================== 一覧描画 =====================
+      function renderList() {
+        updateStatusCounts();
+        let filtered = [...movies];
+
+        // ステータスフィルター
+        if (currentStatus !== "all") {
+          filtered = filtered.filter((m) => m.status === currentStatus);
+        }
+
+        // 検索
+        if (searchQuery) {
+          filtered = filtered.filter((m) =>
+            (m.title || "").toLowerCase().includes(searchQuery),
+          );
+        }
+
+        // 評価フィルター
+        if (currentRatingFilter) {
+          const selectedRating = Number(currentRatingFilter);
+          filtered = filtered.filter((m) => Number(m.rating || 0) === selectedRating);
+        }
+
+        // 公開年フィルター
+        if (currentYearFilter) {
+          filtered = filtered.filter((m) => String(m.year || "").slice(0, 4) === currentYearFilter);
+        }
+
+        // お気に入りフィルター
+        if (currentFavoriteFilter === "favorite") {
+          filtered = filtered.filter((m) => m.favorite === true);
+        }
+
+        // 監督フィルター
+        if (currentDirectorFilter) {
+          filtered = filtered.filter((m) => peopleList(m.director).some((name) => normalizePersonName(name).includes(normalizePersonName(currentDirectorFilter))));
+        }
+
+        // 出演者フィルター
+        if (currentCastFilter) {
+          filtered = filtered.filter((m) => peopleList(m.cast).some((name) => normalizePersonName(name).includes(normalizePersonName(currentCastFilter))));
+        }
+
+        // ジャンルフィルター
+        if (currentGenreFilter) {
+          filtered = filtered.filter((m) =>
+            getGenres(m.genre).includes(currentGenreFilter),
+          );
+        }
+
+        // 並び替え
+        filtered.sort((a, b) => {
+          switch (currentSort) {
+            case "ratingDesc":
+              return (b.rating || 0) - (a.rating || 0);
+            case "ratingAsc":
+              return (a.rating || 0) - (b.rating || 0);
+            case "watchDateDesc":
+              return (b.watchDate || "").localeCompare(a.watchDate || "");
+            case "watchDateAsc":
+              return (a.watchDate || "").localeCompare(b.watchDate || "");
+            case "yearDesc":
+              return (b.year || "").localeCompare(a.year || "");
+            case "yearAsc":
+              return (a.year || "").localeCompare(b.year || "");
+            case "titleAsc":
+              return (a.title || "").localeCompare(b.title || "", "ja");
+            case "seriesAsc": {
+              const aSeries = (a.seriesName || "").trim();
+              const bSeries = (b.seriesName || "").trim();
+              if (aSeries && !bSeries) return -1;
+              if (!aSeries && bSeries) return 1;
+              if (!aSeries && !bSeries) return (a.title || "").localeCompare(b.title || "", "ja");
+              const seriesCompare = aSeries.localeCompare(bSeries, "ja");
+              if (seriesCompare !== 0) return seriesCompare;
+              const aOrder = Number(a.seriesOrder) || Number.MAX_SAFE_INTEGER;
+              const bOrder = Number(b.seriesOrder) || Number.MAX_SAFE_INTEGER;
+              if (aOrder !== bOrder) return aOrder - bOrder;
+              return (a.title || "").localeCompare(b.title || "", "ja");
+            }
+            default:
+              return (b.watchDate || "").localeCompare(a.watchDate || "");
+          }
+        });
+
+        const grid = document.getElementById("movieGrid");
+        const empty = document.getElementById("emptyState");
+        grid.innerHTML = "";
+
+        if (filtered.length === 0) {
+          empty.classList.remove("hidden");
+          return;
+        }
+        empty.classList.add("hidden");
+
+        const renderMovieCard = (movie) => {
+          const card = document.createElement("div");
+          card.className =
+            "bg-white rounded-xl overflow-hidden card-shadow active:scale-[0.98] transition-transform cursor-pointer";
+          card.onclick = () => openDetail(movie.id);
+
+          let statusHtml = "";
+          if (movie.status === "watched") {
+            const rating = movie.rating || 0;
+            statusHtml = `<div class="text-amber-400 text-xs">${"★".repeat(rating)}${"☆".repeat(5 - rating)}</div>`;
+          } else if (movie.status === "watching") {
+            const rating = movie.rating || 0;
+            const ratingHtml = rating > 0
+              ? `<span class="text-amber-400 text-xs">${"★".repeat(rating)}${"☆".repeat(5 - rating)}</span>`
+              : "";
+            statusHtml = `<div class="flex items-center gap-2"><span class="inline-block bg-blue-50 text-blue-600 text-[10px] px-2 py-0.5 rounded-full">視聴中</span>${ratingHtml}</div>`;
+          } else {
+            statusHtml = `<span class="inline-block bg-gray-100 text-gray-500 text-[10px] px-2 py-0.5 rounded-full">未視聴</span>`;
+          }
+
+          card.innerHTML = `
+          <div class="aspect-[2/3] bg-gray-200 relative">
+            <img src="${movie.thumbnail || "https://via.placeholder.com/300x450?text=No+Image"}" 
+                 alt="${escapeHtml(movie.title)}"
+                 class="w-full h-full object-cover"
+                 onerror="this.src='https://via.placeholder.com/300x450?text=No+Image'">
+          </div>
+          <div class="p-2.5">
+            <h3 class="font-semibold text-sm text-slate-800 line-clamp-2 leading-tight mb-1">${escapeHtml(movie.title)}</h3>
+            <div class="flex items-center gap-1.5">
+              ${statusHtml}
+              ${movie.favorite ? '<span class="text-rose-500 text-sm leading-none" title="お気に入り" aria-label="お気に入り">♥</span>' : ''}
+            </div>
+          </div>
+        `;
+          grid.appendChild(card);
+        };
+
+        if (currentSort === "seriesAsc") {
+          let lastGroup = null;
+          filtered.forEach((movie) => {
+            const groupName = (movie.seriesName || "").trim() || "シリーズなし";
+            if (groupName !== lastGroup) {
+              const heading = document.createElement("div");
+              heading.className = "col-span-3 pt-2 pb-1 text-sm font-semibold text-slate-700 border-b border-gray-200";
+              heading.textContent = groupName;
+              grid.appendChild(heading);
+              lastGroup = groupName;
+            }
+            renderMovieCard(movie);
+          });
+        } else {
+          filtered.forEach(renderMovieCard);
+        }
+      }
+
+      // ===================== 詳細表示 =====================
+      function openDetail(id) {
+        const movie = movies.find((m) => m.id === id);
+        if (!movie) return;
+
+        const statusLabel =
+          { watched: "視聴済", watching: "視聴中", unwatched: "未視聴" }[
+            movie.status
+          ] || "未視聴";
+        const genres = (movie.genre || "")
+          .split(",")
+          .map((g) => g.trim())
+          .filter(Boolean);
+        const genreHtml = genres
+          .map(
+            (g) =>
+              `<span class="inline-block bg-slate-100 text-slate-700 text-xs px-2.5 py-1 rounded-full mr-1.5 mb-1.5">${escapeHtml(g)}</span>`,
+          )
+          .join("");
+
+        const content = document.getElementById("detailContent");
+        content.innerHTML = `
+        <div class="flex justify-center mb-5">
+          <img src="${movie.thumbnail || "https://via.placeholder.com/300x450?text=No+Image"}" 
+               alt="${escapeHtml(movie.title)}"
+               class="w-48 h-72 object-cover rounded-xl shadow-lg bg-gray-200"
+               onerror="this.src='https://via.placeholder.com/300x450?text=No+Image'">
+        </div>
+
+        <h2 class="text-2xl font-bold text-slate-800 mb-2 text-center">${escapeHtml(movie.title)}</h2>
+
+        <div class="flex justify-center mb-3">
+          <button id="favoriteDetailBtn" onclick="toggleFavorite('${movie.id}')" class="px-4 py-2 rounded-full text-sm font-medium ${movie.favorite ? 'bg-rose-50 text-rose-600' : 'bg-slate-100 text-slate-600'}">${movie.favorite ? '♥ お気に入り' : '♡ お気に入りに追加'}</button>
+        </div>
+        
+        <div class="text-amber-400 text-xl text-center mb-3">${"★".repeat(movie.rating || 0)}${"☆".repeat(5 - (movie.rating || 0))}</div>
+
+        <div class="flex flex-wrap justify-center mb-5">${genreHtml || '<span class="text-gray-400 text-sm">ジャンル未設定</span>'}</div>
+
+        ${
+          movie.synopsis
+            ? `
+          <div class="mb-6">
+            <h3 class="text-sm font-semibold text-slate-500 mb-1.5">あらすじ</h3>
+            <p class="text-slate-700 text-sm leading-relaxed">${escapeHtml(movie.synopsis)}</p>
+          </div>
+        `
+            : ""
+        }
+
+        <div class="space-y-3 text-sm mb-6">
+          ${movie.year ? `<div class="flex"><span class="w-20 text-slate-500 shrink-0">公開年</span><span class="text-slate-800">${escapeHtml(movie.year)}</span></div>` : ""}
+          ${movie.runtime ? `<div class="flex"><span class="w-20 text-slate-500 shrink-0">上映時間</span><span class="text-slate-800">${escapeHtml(movie.runtime)}分</span></div>` : ""}
+          ${movie.country ? `<div class="flex"><span class="w-20 text-slate-500 shrink-0">制作国</span><span class="text-slate-800">${escapeHtml(movie.country)}</span></div>` : ""}
+          ${movie.director ? `<div class="flex"><span class="w-20 text-slate-500 shrink-0">監督</span><span class="text-slate-800">${escapeHtml(movie.director)}</span></div>` : ""}
+          ${movie.writer ? `<div class="flex"><span class="w-20 text-slate-500 shrink-0">脚本</span><span class="text-slate-800">${escapeHtml(movie.writer)}</span></div>` : ""}
+          ${movie.cast ? `<div class="flex"><span class="w-20 text-slate-500 shrink-0">キャスト</span><span class="text-slate-800">${escapeHtml(movie.cast)}</span></div>` : ""}
+          ${movie.seriesName ? `<div class="flex"><span class="w-20 text-slate-500 shrink-0">シリーズ</span><span class="text-slate-800">${escapeHtml(movie.seriesName)}${movie.seriesOrder ? `（${escapeHtml(movie.seriesOrder)}）` : ""}</span></div>` : ""}
+        </div>
+
+        <div class="border-t border-gray-100 pt-4 space-y-3 text-sm mb-6">
+          <div class="flex"><span class="w-24 text-slate-500 shrink-0">ステータス</span><span class="text-slate-800 font-medium">${statusLabel}</span></div>
+          ${movie.watchDate ? `<div class="flex"><span class="w-24 text-slate-500 shrink-0">視聴日</span><span class="text-slate-800">${formatWatchDate(movie.watchDate)}</span></div>` : ""}
+        </div>
+
+        ${
+          movie.comment
+            ? `
+          <div class="bg-slate-50 rounded-xl p-4 mb-6">
+            <h3 class="text-sm font-semibold text-slate-500 mb-1.5">コメント</h3>
+            <p class="text-slate-700 text-sm leading-relaxed whitespace-pre-wrap">${escapeHtml(movie.comment)}</p>
+          </div>
+        `
+            : ""
+        }
+
+        <div class="flex gap-3">
+          <button onclick="openForm('${movie.id}')" class="flex-1 bg-slate-800 text-white py-3 rounded-xl font-medium active:bg-slate-700">
+            編集
+          </button>
+          <button onclick="deleteMovie('${movie.id}')" class="flex-1 bg-red-500 text-white py-3 rounded-xl font-medium active:bg-red-600">
+            削除
+          </button>
+        </div>
+      `;
+
+        showView("detail");
+      }
+
+      // ===================== フォーム =====================
+      function openForm(id = null) {
+        editingId = id;
+        currentRating = 0;
+        window.currentFormFavorite = false;
+        window.currentMediaType = null;
+
+        // リセット
+        document.getElementById("titleInput").value = "";
+        document.getElementById("thumbnailInput").value = "";
+        document.getElementById("synopsisInput").value = "";
+        selectedGenres = [];
+        updateGenreButtons();
+        document.getElementById("genreInput").value = "";
+        populateYearInput("");
+        document.getElementById("runtimeInput").value = "";
+        document.getElementById("countryInput").value = "";
+        document.getElementById("directorInput").value = "";
+        document.getElementById("writerInput").value = "";
+        document.getElementById("castInput").value = "";
+        document.getElementById("seriesNameInput").value = "";
+        document.getElementById("seriesOrderInput").value = "";
+        document.getElementById("watchDateInput").value = "";
+        document.getElementById("commentInput").value = "";
+        document.getElementById("statusInput").value = "watched";
+        document.getElementById("ratingInput").value = 0;
+        updateFormFavoriteButton();
+        document.getElementById("fetchStatus").classList.add("hidden");
+        document.getElementById("posterPreview").classList.add("hidden");
+        updateStars(0);
+
+        if (id) {
+          const movie = movies.find((m) => m.id === id);
+          if (movie) {
+            document.getElementById("formTitle").textContent = "編集";
+            document.getElementById("titleInput").value = movie.title || "";
+            document.getElementById("thumbnailInput").value =
+              movie.thumbnail || "";
+            document.getElementById("synopsisInput").value =
+              movie.synopsis || "";
+            selectedGenres = getGenres(movie.genre);
+            document.getElementById("genreInput").value = selectedGenres.join(", ");
+            updateGenreButtons();
+            populateYearInput(movie.year || "");
+            document.getElementById("runtimeInput").value = movie.runtime || "";
+            document.getElementById("countryInput").value = movie.country || "";
+            document.getElementById("directorInput").value =
+              movie.director || "";
+            document.getElementById("writerInput").value = movie.writer || "";
+            document.getElementById("castInput").value = movie.cast || "";
+            document.getElementById("seriesNameInput").value = movie.seriesName || "";
+            document.getElementById("seriesOrderInput").value = movie.seriesOrder || "";
+            document.getElementById("watchDateInput").value =
+              normalizeWatchDate(movie.watchDate || "");
+            document.getElementById("commentInput").value = movie.comment || "";
+            window.currentMediaType = movie.mediaType || "movie";
+            document.getElementById("statusInput").value =
+              movie.status || "unwatched";
+            currentRating = movie.rating || 0;
+            document.getElementById("ratingInput").value = currentRating;
+            updateStars(currentRating);
+            window.currentFormFavorite = movie.favorite === true;
+            updateFormFavoriteButton();
+
+            if (movie.thumbnail) {
+              document.getElementById("previewImg").src = movie.thumbnail;
+              document
+                .getElementById("posterPreview")
+                .classList.remove("hidden");
+            }
+          }
+        } else {
+          document.getElementById("formTitle").textContent = "新規登録";
+        }
+
+        updateWatchDatePlaceholder();
+        showView("form");
+      }
+
+      function updateWatchDatePlaceholder() {
+        const input = document.getElementById("watchDateInput");
+        const placeholder = document.getElementById("watchDatePlaceholder");
+        if (!input || !placeholder) return;
+        const hasValue = Boolean(input.value);
+        placeholder.classList.toggle("hidden", hasValue);
+        input.classList.toggle("date-empty", !hasValue);
+      }
+
+      function updateStars(rating) {
+        document.querySelectorAll("#ratingStars .star").forEach((star) => {
+          star.classList.toggle(
+            "active",
+            parseInt(star.dataset.value) <= rating,
+          );
+        });
+      }
+
+      function updateFormFavoriteButton() {
+        const btn = document.getElementById("favoriteInputBtn");
+        if (!btn) return;
+        const isFavorite = window.currentFormFavorite === true;
+        btn.textContent = isFavorite ? "♥" : "♡";
+        btn.setAttribute("aria-label", isFavorite ? "お気に入りを解除" : "お気に入りに追加");
+        btn.title = isFavorite ? "お気に入りを解除" : "お気に入りに追加";
+        btn.classList.toggle("bg-rose-50", isFavorite);
+        btn.classList.toggle("text-rose-500", isFavorite);
+        btn.classList.toggle("border-rose-200", isFavorite);
+        btn.classList.toggle("bg-white", !isFavorite);
+        btn.classList.toggle("text-slate-500", !isFavorite);
+        btn.classList.toggle("border-gray-300", !isFavorite);
+      }
+
+      function toggleFormFavorite() {
+        window.currentFormFavorite = window.currentFormFavorite !== true;
+        updateFormFavoriteButton();
+      }
+
+      // ===================== 保存 =====================
+      function saveMovie() {
+        const title = document.getElementById("titleInput").value.trim();
+        if (!title) {
+          alert("タイトルを入力してください");
+          return;
+        }
+
+        const movieData = {
+          title,
+          mediaType: window.currentMediaType || (editingId ? (movies.find((m) => m.id === editingId)?.mediaType || "movie") : "movie"),
+          thumbnail: document.getElementById("thumbnailInput").value.trim(),
+          synopsis: document.getElementById("synopsisInput").value.trim(),
+          genre: selectedGenres.join(", "),
+          year: document.getElementById("yearInput").value.trim(),
+          runtime: document.getElementById("runtimeInput").value.trim(),
+          country: document.getElementById("countryInput").value.trim(),
+          director: document.getElementById("directorInput").value.trim(),
+          writer: document.getElementById("writerInput").value.trim(),
+          cast: document.getElementById("castInput").value.trim(),
+          seriesName: document.getElementById("seriesNameInput").value.trim(),
+          seriesOrder: document.getElementById("seriesOrderInput").value.trim(),
+          watchDate: document.getElementById("watchDateInput").value,
+          comment: document.getElementById("commentInput").value.trim(),
+          status: document.getElementById("statusInput").value,
+          rating: parseInt(document.getElementById("ratingInput").value) || 0,
+          favorite: window.currentFormFavorite === true,
+        };
+
+        if (editingId) {
+          const index = movies.findIndex((m) => m.id === editingId);
+          if (index !== -1) {
+            movies[index] = { ...movies[index], ...movieData };
+          }
+        } else {
+          movieData.id = Date.now().toString();
+          movieData.createdAt = new Date().toISOString();
+          movies.unshift(movieData);
+        }
+
+        localStorage.setItem("movieLog_movies", JSON.stringify(movies));
+        populateYearFilter();
+        showView("list");
+      }
+
+      function toggleFavorite(id) {
+        const index = movies.findIndex((m) => m.id === id);
+        if (index === -1) return;
+        movies[index].favorite = movies[index].favorite !== true;
+        localStorage.setItem("movieLog_movies", JSON.stringify(movies));
+        openDetail(id);
+      }
+
+      function updateStatusCounts() {
+        const watched = movies.filter((m) => m.status === "watched").length;
+        const watching = movies.filter((m) => m.status === "watching").length;
+        const unwatched = movies.filter((m) => m.status === "unwatched" || !m.status).length;
+        document.getElementById("watchedCount").textContent = watched;
+        document.getElementById("watchingCount").textContent = watching;
+        document.getElementById("unwatchedCount").textContent = unwatched;
+      }
+
+      function normalizePersonName(value) {
+        return String(value || "")
+          .toLowerCase()
+          .replace(/[・･\s　,，]/g, "")
+          .trim();
+      }
+
+      function peopleList(value) {
+        return String(value || "")
+          .split(/[,，/／]/)
+          .map((name) => name.trim())
+          .filter(Boolean);
+      }
+
+      function getPersonCandidates(type) {
+        const values = movies.flatMap((m) => peopleList(m[type]));
+        return [...new Set(values)];
+      }
+
+      function setupAutocomplete(inputId, suggestionsId, type) {
+        const input = document.getElementById(inputId);
+        const box = document.getElementById(suggestionsId);
+        if (!input || !box) return;
+
+        input.addEventListener("input", () => {
+          const value = input.value.trim();
+          if (type === "director") currentDirectorFilter = value;
+          if (type === "cast") currentCastFilter = value;
+          renderAutocomplete(input, box, type, value);
+          renderList();
+        });
+
+        input.addEventListener("focus", () => {
+          renderAutocomplete(input, box, type, input.value.trim());
+        });
+
+        document.addEventListener("click", (e) => {
+          if (!input.contains(e.target) && !box.contains(e.target)) box.classList.add("hidden");
+        });
+      }
+
+      function renderAutocomplete(input, box, type, query) {
+        const normalizedQuery = normalizePersonName(query);
+        const candidates = getPersonCandidates(type)
+          .filter((name) => !normalizedQuery || normalizePersonName(name).includes(normalizedQuery))
+          .slice(0, 12);
+
+        box.innerHTML = "";
+        if (!candidates.length) {
+          box.classList.add("hidden");
+          return;
+        }
+
+        candidates.forEach((name) => {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "block w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50";
+          button.textContent = name;
+          button.addEventListener("click", () => {
+            input.value = name;
+            if (type === "director") currentDirectorFilter = name;
+            if (type === "cast") currentCastFilter = name;
+            box.classList.add("hidden");
+            renderList();
+          });
+          box.appendChild(button);
+        });
+        box.classList.remove("hidden");
+      }
+
+      // ===================== バックアップ =====================
+      function saveBackup() {
+        const backup = {
+          app: "Movie Log",
+          version: 1,
+          savedAt: new Date().toISOString(),
+          movies: movies,
+        };
+        const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        const today = new Date();
+        const y = today.getFullYear();
+        const m = String(today.getMonth() + 1).padStart(2, "0");
+        const d = String(today.getDate()).padStart(2, "0");
+        link.href = url;
+        link.download = `movie-log-backup-${y}${m}${d}.json`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+      }
+
+      async function restoreBackup(event) {
+        const file = event.target.files && event.target.files[0];
+        if (!file) return;
+        try {
+          const text = await file.text();
+          const backup = JSON.parse(text);
+          if (!backup || backup.app !== "Movie Log" || !Array.isArray(backup.movies)) {
+            alert("Movie Logのバックアップファイルを選択してください");
+            return;
+          }
+          const ok = confirm(
+            `バックアップの${backup.movies.length}作品に復元します。\n現在の${movies.length}作品はバックアップの内容に置き換わります。よろしいですか？`,
+          );
+          if (!ok) return;
+          movies = backup.movies.map((movie) => ({
+            ...movie,
+            genre: getGenres(movie.genre)
+              .map((g) => normalizeGenreName(g))
+              .filter(Boolean)
+              .filter((g, i, arr) => arr.indexOf(g) === i)
+              .join(", "),
+            watchDate: normalizeWatchDate(movie.watchDate),
+            favorite: movie.favorite === true,
+            seriesName: movie.seriesName || "",
+            seriesOrder: movie.seriesOrder || "",
+            watchPlace: undefined,
+          }));
+          localStorage.setItem("movieLog_movies", JSON.stringify(movies));
+          populateYearFilter();
+          renderList();
+          alert(`${movies.length}作品を復元しました`);
+        } catch (error) {
+          alert("バックアップファイルを読み込めませんでした");
+        } finally {
+          event.target.value = "";
+        }
+      }
+
+      // ===================== 削除 =====================
+      function deleteMovie(id) {
+        if (confirm("この作品を削除しますか？")) {
+          movies = movies.filter((m) => m.id !== id);
+          localStorage.setItem("movieLog_movies", JSON.stringify(movies));
+          populateYearFilter();
+          showView("list");
+        }
+      }
+
+      // ===================== ポスター自動取得（TMDb） =====================
+      async function fetchPoster() {
+        const title = document.getElementById("titleInput").value.trim();
+        const statusEl = document.getElementById("fetchStatus");
+
+        if (!title) {
+          alert("タイトルを入力してください");
+          return;
+        }
+        if (!apiKey) {
+          alert("先にTMDb APIキーを設定してください");
+          document
+            .getElementById("apiKeySection")
+            .scrollIntoView({ behavior: "smooth" });
+          return;
+        }
+
+        statusEl.classList.remove("hidden");
+        statusEl.textContent = "取得中...";
+        statusEl.className = "text-sm mt-1.5 text-blue-600";
+
+        try {
+          // 映画・テレビシリーズの両方を検索
+          const searchRes = await fetch(
+            `https://api.themoviedb.org/3/search/multi?api_key=${apiKey}&query=${encodeURIComponent(title)}&language=ja&include_adult=false`,
+          );
+          const searchData = await searchRes.json();
+
+          const result = (searchData.results || []).find(
+            (item) => item.media_type === "movie" || item.media_type === "tv",
+          );
+
+          if (!result) {
+            statusEl.textContent =
+              "見つかりませんでした。タイトルを変えて試すか、手動で入力してください";
+            statusEl.className = "text-sm mt-1.5 text-red-600";
+            return;
+          }
+
+          const mediaType = result.media_type;
+          const detailRes = await fetch(
+            `https://api.themoviedb.org/3/${mediaType}/${result.id}?api_key=${apiKey}&language=ja&append_to_response=credits`,
+          );
+          const detail = await detailRes.json();
+
+          if (detail.poster_path) {
+            const posterUrl = `https://image.tmdb.org/t/p/w500${detail.poster_path}`;
+            document.getElementById("thumbnailInput").value = posterUrl;
+            document.getElementById("previewImg").src = posterUrl;
+            document.getElementById("posterPreview").classList.remove("hidden");
+          }
+
+          const titleValue = mediaType === "tv" ? detail.name : detail.title;
+          const overview = detail.overview || "";
+          const yearValue =
+            mediaType === "tv"
+              ? (detail.first_air_date || "").slice(0, 4)
+              : (detail.release_date || "").slice(0, 4);
+          const runtimeValue =
+            mediaType === "tv"
+              ? (detail.episode_run_time && detail.episode_run_time[0]) || ""
+              : detail.runtime || "";
+
+          document.getElementById("titleInput").value = titleValue || title;
+          document.getElementById("synopsisInput").value = overview;
+          populateYearInput(yearValue);
+          document.getElementById("runtimeInput").value = runtimeValue;
+
+          // TMDbのジャンルIDをMovie Logの14ジャンルへ変換
+          const genreNames = (detail.genres || [])
+            .map((g) => mapTmdbGenre(g.id, g.name, mediaType))
+            .filter(Boolean);
+          selectedGenres = [...new Set(genreNames)].slice(0, 2);
+          document.getElementById("genreInput").value = selectedGenres.join(", ");
+          updateGenreButtons();
+
+          if (mediaType === "movie") {
+            if (
+              detail.production_countries &&
+              detail.production_countries.length > 0
+            ) {
+              document.getElementById("countryInput").value =
+                detail.production_countries.map((c) => c.name).join(", ");
+            }
+          } else if (detail.origin_country && detail.origin_country.length > 0) {
+            document.getElementById("countryInput").value =
+              detail.origin_country.join(", ");
+          }
+
+          if (detail.credits) {
+            if (mediaType === "movie") {
+              const directors = detail.credits.crew
+                .filter((p) => p.job === "Director")
+                .map((p) => p.name);
+              document.getElementById("directorInput").value =
+                [...new Set(directors)].join(", ");
+            } else if (detail.created_by && detail.created_by.length > 0) {
+              document.getElementById("directorInput").value =
+                detail.created_by.map((p) => p.name).join(", ");
+            }
+
+            const writers = detail.credits.crew
+              .filter(
+                (p) =>
+                  p.job === "Screenplay" ||
+                  p.job === "Writer" ||
+                  p.job === "Story" ||
+                  p.department === "Writing",
+              )
+              .map((p) => p.name);
+            document.getElementById("writerInput").value =
+              [...new Set(writers)].slice(0, 5).join(", ");
+
+            if (detail.credits.cast && detail.credits.cast.length > 0) {
+              document.getElementById("castInput").value = detail.credits.cast
+                .slice(0, 8)
+                .map((p) => p.name)
+                .join(", ");
+            }
+          }
+
+          window.currentMediaType = mediaType;
+          statusEl.textContent = `取得成功：「${titleValue || title}」`;
+          statusEl.className = "text-sm mt-1.5 text-green-600";
+        } catch (err) {
+          console.error(err);
+          statusEl.textContent =
+            "通信エラーが発生しました。APIキーが正しいか確認してください";
+          statusEl.className = "text-sm mt-1.5 text-red-600";
+        }
+      }
+
+      // ===================== ユーティリティ =====================
+      const MOVIE_LOG_GENRES = [
+        "アクション",
+        "アドベンチャー",
+        "アニメ",
+        "音楽",
+        "コメディ",
+        "ドキュメンタリー",
+        "ファンタジー",
+        "ホラー",
+        "ミステリー",
+        "サスペンス",
+        "恋愛",
+        "SF",
+        "ヒューマン系",
+        "ドラマ",
+      ];
+
+      function getGenres(value) {
+        if (!value) return [];
+        return String(value)
+          .split(",")
+          .map((g) => g.trim())
+          .filter(Boolean);
+      }
+
+      function updateGenreButtons() {
+        document.getElementById("genreInput").value = selectedGenres.join(", ");
+        document.querySelectorAll(".genre-btn").forEach((btn) => {
+          const active = selectedGenres.includes(btn.dataset.genre);
+          btn.classList.toggle("bg-slate-800", active);
+          btn.classList.toggle("text-white", active);
+          btn.classList.toggle("border-slate-800", active);
+          btn.classList.toggle("bg-white", !active);
+          btn.classList.toggle("text-slate-700", !active);
+        });
+      }
+
+      function mapTmdbGenre(id, name, mediaType) {
+        const idMap = {
+          28: "アクション",
+          12: "アドベンチャー",
+          16: "アニメ",
+          10402: "音楽",
+          35: "コメディ",
+          99: "ドキュメンタリー",
+          14: "ファンタジー",
+          27: "ホラー",
+          9648: "ミステリー",
+          10749: "恋愛",
+          878: "SF",
+          18: "ヒューマン系",
+          53: "サスペンス",
+        };
+        if (mediaType === "tv") return "ドラマ";
+        return idMap[id] || normalizeGenreName(name);
+      }
+
+      function normalizeGenreName(name) {
+        const map = {
+          Action: "アクション",
+          Adventure: "アドベンチャー",
+          Animation: "アニメ",
+          Music: "音楽",
+          Comedy: "コメディ",
+          Documentary: "ドキュメンタリー",
+          Fantasy: "ファンタジー",
+          Horror: "ホラー",
+          Mystery: "ミステリー",
+          Romance: "恋愛",
+          "Science Fiction": "SF",
+          Drama: "ヒューマン系",
+          Thriller: "サスペンス",
+          アクション: "アクション",
+          アドベンチャー: "アドベンチャー",
+          アニメーション: "アニメ",
+          音楽: "音楽",
+          コメディ: "コメディ",
+          ドキュメンタリー: "ドキュメンタリー",
+          ファンタジー: "ファンタジー",
+          ホラー: "ホラー",
+          ミステリー: "ミステリー",
+          ロマンス: "恋愛",
+          恋愛: "恋愛",
+          "サイエンスフィクション": "SF",
+          ドラマ: "ヒューマン系",
+          スリラー: "サスペンス",
+          サスペンス: "サスペンス",
+        };
+        return map[name] || (MOVIE_LOG_GENRES.includes(name) ? name : "");
+      }
+
+      function normalizeWatchDate(value) {
+        if (!value) return "";
+        return String(value).slice(0, 7);
+      }
+
+      function formatWatchDate(value) {
+        const normalized = normalizeWatchDate(value);
+        if (!normalized) return "";
+        const [year, month] = normalized.split("-");
+        return month ? `${year}年${parseInt(month, 10)}月` : normalized;
+      }
+
+      function escapeHtml(str) {
+        if (!str) return "";
+        return String(str)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#039;");
+      }
+
+      // 起動時に既存データも新しい形式へ整える
+      movies = movies.map((movie) => ({
+        ...movie,
+        genre: getGenres(movie.genre)
+          .map((g) => normalizeGenreName(g))
+          .filter(Boolean)
+          .filter((g, i, arr) => arr.indexOf(g) === i)
+          .join(", "),
+        watchDate: normalizeWatchDate(movie.watchDate),
+        favorite: movie.favorite === true,
+        seriesName: movie.seriesName || "",
+        seriesOrder: movie.seriesOrder || "",
+        watchPlace: undefined,
+      }));
+
+      // 起動
+      init();
+    </script>
+  </body>
+</html>
