@@ -881,7 +881,21 @@
         }
       }
 
-    </style>
+    
+      /* v24: PC版でページ下端までストライプ背景を継続 */
+      @media (min-width: 1024px) {
+        #listView {
+          background-color: #f2eee5;
+          background-image: repeating-linear-gradient(
+            90deg,
+            #f8f6f0 0,
+            #f8f6f0 42px,
+            #d8cebb 42px,
+            #d8cebb 84px
+          );
+        }
+      }
+</style>
   </head>
   <body class="min-h-screen pb-24">
     <!-- ========== 一覧画面 ========== -->
