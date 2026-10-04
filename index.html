@@ -7,10 +7,20 @@
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
     />
     <title>Movie Log</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Zen+Kaku+Gothic+New:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
       :root {
-        --primary: #1e293b;
+        --primary: #34332f;
+        --paper: #f3efe6;
+        --paper-light: #faf7f0;
+        --ink: #34332f;
+        --muted: #7d786f;
+        --line: #cfc7b8;
+        --burgundy: #7b4548;
+        --olive: #73745d;
       }
       html,
       body {
@@ -20,9 +30,10 @@
       }
       body {
         font-family:
-          -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans",
-          "Noto Sans JP", sans-serif;
-        background-color: #eeeeee;
+          "Zen Kaku Gothic New", -apple-system, BlinkMacSystemFont, "Segoe UI",
+          "Hiragino Sans", "Noto Sans JP", sans-serif;
+        background-color: var(--paper);
+        color: var(--ink);
       }
       #formView,
       #formView main,
@@ -95,6 +106,781 @@
       #watchDateInput.date-empty::-webkit-date-and-time-value {
         color: transparent;
       }
+
+      /* Movie Log ヴィンテージ・シネマテーマ */
+      #listView header { background: rgba(250, 247, 240, 0.97); border-color: var(--line); }
+      .movie-log-brand { font-family: Georgia, "Times New Roman", serif; letter-spacing: .08em; text-transform: uppercase; }
+      .movie-log-number { font-family: "Playfair Display", Georgia, serif; font-weight: 700; letter-spacing: .015em; font-variant-numeric: lining-nums tabular-nums; }
+      .vintage-control { background: var(--paper-light) !important; border-color: var(--line) !important; border-radius: .4rem !important; color: var(--ink) !important; box-shadow: none !important; }
+      .vintage-control:focus { --tw-ring-color: rgba(123,69,72,.28) !important; }
+      .vintage-button { border-radius: .35rem !important; background: var(--ink) !important; color: #fff !important; letter-spacing: .03em; box-shadow: none !important; }
+      .vintage-button:hover { background: #4b4943 !important; }
+      .data-management-toggle { color: var(--muted); letter-spacing: .02em; }
+      .data-management-toggle:hover { color: var(--ink); }
+      .data-management-panel { border-top: 1px solid var(--line); }
+      #listView > section { border-top: 1px solid #bfb3a0; }
+      #listView > section > * { max-width: 1440px; margin-left: auto; margin-right: auto; }
+
+      /* トップ画面：古い映画館の壁紙 × 淡い古紙アーカイブ */
+      #listView { background: #eee8dc; }
+      #listView header,
+      #listView > section {
+        background-color: #f2eee5;
+        background-image: repeating-linear-gradient(
+          90deg,
+          #f8f6f0 0,
+          #f8f6f0 42px,
+          #d8cebb 42px,
+          #d8cebb 84px
+        );
+      }
+      #listView header { border-color: #bfb3a0; }
+      #listView > main {
+        position: relative;
+        max-width: none;
+        background-color: #e8e0d2;
+        background-image:
+          radial-gradient(ellipse at 12% 18%, rgba(126,105,76,.055) 0 7%, transparent 19%),
+          radial-gradient(ellipse at 82% 72%, rgba(255,255,255,.20) 0 9%, transparent 22%),
+          linear-gradient(101deg, transparent 0 36%, rgba(117,96,70,.035) 36.15%, rgba(255,255,255,.10) 36.45%, transparent 36.8%),
+          linear-gradient(7deg, transparent 0 67%, rgba(111,90,65,.035) 67.15%, rgba(255,255,255,.08) 67.45%, transparent 67.8%),
+          repeating-linear-gradient(3deg, rgba(89,70,48,.012) 0 1px, transparent 1px 5px);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,.35);
+      }
+      #listView > main::before {
+        content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .32;
+        background-image:
+          radial-gradient(circle at 22% 34%, rgba(96,75,50,.11) 0 .7px, transparent 1px),
+          radial-gradient(circle at 68% 57%, rgba(96,75,50,.08) 0 .6px, transparent .9px);
+        background-size: 19px 23px, 29px 31px;
+      }
+      #listView #movieGrid, #listView #emptyState { position: relative; z-index: 1; }
+      .round-add-button { width: 5.7rem; height: 5.7rem; border-radius: 9999px !important; border: 2px solid #34332f; background: #34332f !important; color: #fff !important; display:flex; align-items:center; justify-content:center; text-align:center; line-height:1.25; letter-spacing:.04em; box-shadow: 0 3px 0 rgba(52,51,47,.18); }
+      .round-add-button:hover { background:#4b4943 !important; }
+
+      /* シリーズまとめ：映画アーカイブ風の見出し */
+      #listView .series-heading {
+        grid-column: 1 / -1;
+        display: flex;
+        align-items: center;
+        gap: .8rem;
+        width: 100%;
+        padding: .65rem 0 .2rem;
+        border: 0;
+      }
+      #listView .series-heading-name {
+        flex: 0 0 auto;
+        color: #17283a;
+        font-size: .9rem;
+        font-weight: 600;
+        letter-spacing: .025em;
+      }
+      #listView .series-heading-line {
+        flex: 1 1 auto;
+        min-width: 1.5rem;
+        height: 1px;
+        background: #a7a28d;
+      }
+      #listView .series-heading-label {
+        flex: 0 0 auto;
+        color: #777168;
+        font-family: Georgia, 'Times New Roman', serif;
+        font-size: .68rem;
+        font-weight: 600;
+        letter-spacing: .13em;
+        white-space: nowrap;
+      }
+      /* PC版レイアウト（スマホ版はそのまま） */
+      @media (min-width: 1024px) {
+        #listView .desktop-wide { max-width: 1440px; }
+        #listView .top-header-row { padding-top: 1rem; padding-bottom: .9rem; }
+        #listView .movie-log-brand { font-size: 2.65rem; min-width: 18rem; letter-spacing: .045em; }
+        #listView #statusCounts { flex: 0 1 auto; justify-content: flex-start; gap: 2.7rem; margin-left: .75rem; }
+        #listView .status-stat { min-width: 5rem; }
+        #listView .status-stat > div:first-child, #listView .watch-time-stat > div:first-child { font-size: 1.15rem !important; }
+        #listView .status-stat > div:last-child, #listView .watch-time-stat > div:last-child { font-size: .72rem !important; }
+        #listView .watch-time-stat { min-width: 9.5rem; padding-left: 2.2rem; border-left: 1px solid var(--line); }
+        #listView .desktop-controls { max-width: 1440px; margin: 0 auto; padding: 0 1rem 0.9rem; display: grid; grid-template-columns: 31rem 22rem 10.5rem minmax(6rem,1fr); gap: .65rem; align-items: center; }
+        #listView .desktop-controls > div { max-width: none; margin: 0; padding: 0; width: 100%; }
+        #listView .desktop-controls > div:nth-child(2) { grid-template-columns: repeat(2, 10.65rem); gap: .65rem; }
+        #listView .desktop-controls #detailSearchPanel { position: absolute; right: 7.5rem; width: min(520px, calc(100vw - 2rem)); z-index: 30; box-shadow: 0 12px 30px rgba(0,0,0,.12); }
+        #desktopAddBtn { justify-self: end; }
+
+        #listView #movieGrid { grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 1.35rem 1rem; }
+        #listView .movie-card { background: transparent !important; border-radius: 0 !important; box-shadow: none !important; }
+        #listView .movie-card .movie-card-poster { border: 4px solid #292824; border-radius: 0; overflow: hidden; box-shadow: 0 3px 8px rgba(45,38,29,.20); background:#292824; }
+        #listView .movie-card .movie-card-body { padding: .72rem .15rem .25rem; text-align:center; }
+        #listView .movie-card .movie-card-body > div { justify-content:center; }
+        #listView .movie-card h3 { text-align:center; }
+        #listView > main { padding-left: 1.4rem; padding-right: 1.4rem; }
+        #listView .series-heading { grid-column: 1 / -1; }
+        #addFab { display: none !important; }
+        #searchToggleBtn { display: none; }
+        #searchBar { display: block !important; padding: 0; }
+        #formView .desktop-form-wide { max-width: 1120px; }
+        #formView #genreButtons { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+        #formView .desktop-three-cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
+        #formView .desktop-rating-status-row { display: flex; align-items: end; justify-content: flex-start; gap: 1.5rem; }
+        #formView .desktop-rating-favorite { grid-template-columns: auto auto; justify-content: start; gap: 1.5rem; }
+        #formView .desktop-status-compact { width: 10rem; flex: 0 0 auto; }
+        #formView .desktop-series { grid-template-columns: minmax(0, 28rem) 8rem; justify-content: start; }
+        #formView .desktop-watch-date { width: 14rem; }
+        #formView #castInput { min-height: 5.5rem; resize: vertical; }
+
+        /* PC版 詳細画面 */
+        #detailView .desktop-detail-wide { max-width: 1120px; }
+        #detailView #detailContent { max-width: 1120px; }
+        #detailView .detail-pc-layout { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 2rem; align-items: start; }
+        #detailView .detail-poster { width: 240px; height: 360px; margin: 0; }
+        #detailView .detail-main { min-width: 0; }
+        #detailView .detail-title-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 1.5rem; margin-bottom: 0.65rem; }
+        #detailView .detail-title { text-align: left; margin: 0; }
+        #detailView .detail-desktop-actions { display: flex; gap: 0.65rem; flex: 0 0 auto; }
+        #detailView .detail-meta-row { display: flex; align-items: center; flex-wrap: wrap; gap: 0.85rem; margin-bottom: 1.4rem; }
+        #detailView .detail-meta-row .detail-favorite,
+        #detailView .detail-meta-row .detail-rating,
+        #detailView .detail-meta-row .detail-genres { margin: 0; text-align: left; justify-content: flex-start; }
+        #detailView .detail-info-short { display: flex; flex-wrap: wrap; gap: 0.75rem 2.5rem; margin-top: 1.5rem; margin-bottom: 1.5rem; }
+        #detailView .detail-info-short > div { display: flex; gap: 0.5rem; }
+        #detailView .detail-info-long { display: grid; gap: 0.9rem; margin-bottom: 1.5rem; }
+        #detailView .detail-watch-info { display: flex; flex-wrap: wrap; gap: 0.75rem 2.5rem; padding-top: 1.15rem; margin-top: 0.25rem; margin-bottom: 1.25rem; border-top-color: #d1d5db; }
+        #detailView .detail-mobile-actions { display: none; }
+      }
+
+
+      /* ===== v8: トップ画面の最終調整（PC） ===== */
+      @media (min-width: 1024px) {
+        /* ヘッダー／フッター：太めで淡い、目に優しい2色ストライプ */
+        #listView header,
+        #listView > section {
+          background-color: #f4f0e8;
+          background-image: repeating-linear-gradient(
+            90deg,
+            #fbfaf6 0,
+            #fbfaf6 63px,
+            #e8e2d7 63px,
+            #e8e2d7 126px
+          );
+        }
+
+        /* ヘッダーを少しコンパクトにし、ブランドを中央へ */
+        #listView header { position: sticky; }
+        #listView .top-header-row {
+          position: relative;
+          min-height: 5.15rem;
+          padding-top: .55rem;
+          padding-bottom: .35rem;
+          justify-content: center;
+        }
+        #listView .movie-log-brand {
+          min-width: 0;
+          font-size: 2.85rem;
+          text-align: center;
+          line-height: 1;
+        }
+
+        /* 記録表示：詳細検索の右側にまとめる */
+        #listView #statusCounts {
+          position: absolute;
+          right: 1rem;
+          bottom: .45rem;
+          width: 38rem;
+          max-width: calc(50% - 1rem);
+          margin-left: 0;
+          gap: 1.35rem;
+          justify-content: flex-end;
+        }
+        #listView .status-stat { min-width: 4.35rem; }
+        #listView .watch-time-stat {
+          min-width: 8.6rem;
+          padding-left: 0;
+          border-left: 0;
+        }
+        #listView .status-stat > div:first-child,
+        #listView .watch-time-stat > div:first-child { font-size: 1.22rem !important; }
+        #listView .status-stat > div:last-child,
+        #listView .watch-time-stat > div:last-child { font-size: .76rem !important; }
+
+        /* 検索4項目は左側にコンパクトに揃える */
+        #listView .desktop-controls {
+          position: relative;
+          max-width: 1440px;
+          margin: 0 auto;
+          padding: .25rem 1rem .75rem;
+          display: grid;
+          grid-template-columns: 24rem 19.7rem 9.5rem 1fr;
+          gap: .6rem;
+          align-items: center;
+        }
+        #listView .desktop-controls > div:nth-child(2) {
+          grid-template-columns: repeat(2, 9.55rem);
+          gap: .6rem;
+        }
+        #listView .desktop-controls > div:nth-child(3) { width: 9.5rem; }
+        #listView #detailSearchToggle {
+          display: block;
+          width: 100%;
+          height: 42px;
+          border: 1px solid var(--line) !important;
+          background: var(--paper-light) !important;
+          border-radius: .4rem !important;
+          box-sizing: border-box;
+        }
+        #listView #searchInput,
+        #listView #sortSelect,
+        #listView #genreFilter { height: 42px; }
+
+        /* 新規登録：少し小さくして記録表示の上へ */
+        #desktopAddBtn {
+          position: absolute;
+          right: 1.35rem;
+          top: -4.7rem;
+          width: 4.8rem;
+          height: 4.8rem;
+          font-size: .78rem;
+          z-index: 2;
+        }
+
+        /* カードエリア：古紙表現をやめ、淡いくすみベージュの無地へ */
+        #listView,
+        #listView > main {
+          background: #eee9df !important;
+          background-image: none !important;
+        }
+        #listView > main::before { display: none !important; }
+        #listView > main {
+          width: 100%;
+          max-width: none;
+          margin-left: 0;
+          margin-right: 0;
+          padding-left: 1.4rem;
+          padding-right: 1.4rem;
+        }
+
+        /* ポスター枠は少し細く、黒より柔らかいチャコールブラウン */
+        #listView .movie-card .movie-card-poster {
+          border: 3px solid #46423b;
+          box-shadow: 0 2px 6px rgba(45, 38, 29, .14);
+          background: #46423b;
+        }
+
+        /* タイトル・評価行を中央に */
+        #listView .movie-card .movie-card-body { text-align: center; }
+        #listView .movie-card .movie-card-body > div { justify-content: center; }
+        #listView .movie-card h3 { text-align: center; }
+
+        /* データ管理を含め、フッターのストライプを画面最下部まで */
+        #listView > section {
+          min-height: 9rem;
+          padding-bottom: 5rem;
+        }
+        #listView .data-management-panel { background: transparent; }
+      }
+
+
+      /* ===== v9: requested header/card/footer corrections (PC only) ===== */
+      @media (min-width: 1024px) {
+        body { padding-bottom: 0 !important; }
+        #listView { min-height: 100vh; }
+
+        /* MOVIE LOG stays on its own row; everything else sits on one line below */
+        #listView .top-header-row {
+          min-height: 4.7rem;
+          padding-top: .5rem;
+          padding-bottom: .2rem;
+        }
+        #listView .desktop-controls {
+          position: relative;
+          display: grid;
+          grid-template-columns: 24rem 21.8rem 9.5rem minmax(0, 1fr);
+          gap: .6rem;
+          padding: .15rem 1rem .75rem;
+          align-items: center;
+        }
+        #listView .desktop-controls > div:nth-child(2) {
+          grid-template-columns: repeat(2, 10.6rem);
+          gap: .6rem;
+        }
+        #listView .desktop-controls > div:nth-child(3) { width: 9.5rem; }
+
+        /* slightly smaller control text so select labels are never clipped */
+        #listView #searchInput,
+        #listView #sortSelect,
+        #listView #genreFilter,
+        #listView #detailSearchToggle {
+          height: 42px;
+          font-size: 14px !important;
+        }
+        #listView #sortSelect,
+        #listView #genreFilter { padding-left: .7rem; padding-right: 1.8rem; }
+        #listView #detailSearchToggle {
+          border: 1px solid var(--line) !important;
+          background: var(--paper-light) !important;
+        }
+
+        /* stats visually continue immediately after 詳細検索 */
+        #listView #statusCounts {
+          position: absolute;
+          top: 5.05rem;
+          bottom: auto;
+          right: 6.25rem;
+          width: auto;
+          max-width: none;
+          display: flex;
+          gap: .72rem;
+          justify-content: flex-end;
+          align-items: center;
+          z-index: 24;
+          white-space: nowrap;
+        }
+        #listView .status-stat { min-width: 3.55rem; }
+        #listView .watch-time-stat { min-width: 7.2rem; }
+        #listView .status-stat > div:first-child,
+        #listView .watch-time-stat > div:first-child { font-size: 1.12rem !important; }
+        #listView .status-stat > div:last-child,
+        #listView .watch-time-stat > div:last-child { font-size: .7rem !important; }
+
+        /* 新規登録 is immediately to the right of 映画視聴時間 */
+        #desktopAddBtn {
+          position: absolute;
+          top: 4.72rem;
+          right: 1rem;
+          width: 4.55rem;
+          height: 4.55rem;
+          font-size: .75rem;
+          z-index: 25;
+        }
+
+        /* ポスター：額装感が出るように影を少し強める */
+        #listView .movie-card .movie-card-poster {
+          box-shadow:
+            0 5px 11px rgba(45, 38, 29, .23),
+            0 2px 4px rgba(45, 38, 29, .16);
+        }
+
+        /* footer stripe reaches the actual bottom of the page */
+        #listView > section {
+          min-height: 10rem;
+          padding-bottom: 6rem;
+          margin-bottom: 0;
+        }
+      }
+
+
+      /* ===== v12: typography + truly equal poster-grid side margins ===== */
+      @media (min-width: 1024px) {
+        /*
+          Keep the seven-column poster area centered as one block.
+          Earlier rules gave <main> the desktop-wide max-width but later reset
+          its margins to 0, which made the remaining space collect on the right.
+        */
+        #listView > main.desktop-wide {
+          box-sizing: border-box;
+          width: calc(100% - 3.5rem) !important;
+          max-width: 1440px !important;
+          margin-left: auto !important;
+          margin-right: auto !important;
+          padding-left: 0 !important;
+          padding-right: 0 !important;
+        }
+      }
+
+      /* ===== v10: PC header one-row layout + dark navy add button ===== */
+      @media (min-width: 1024px) {
+        /* Mobile status display stays in the brand row only on mobile. */
+        #listView .top-header-row #statusCounts { display: none !important; }
+
+        #listView .desktop-controls {
+          position: relative;
+          max-width: 1440px;
+          margin: 0 auto;
+          padding: .15rem 1rem .75rem;
+          display: grid;
+          grid-template-columns: minmax(18rem, 1fr) 21.8rem 9.5rem auto 8.9rem;
+          gap: .7rem;
+          align-items: center;
+        }
+        #listView .desktop-controls > div { min-width: 0; }
+        #listView .desktop-controls > div:nth-child(2) {
+          display: grid;
+          grid-template-columns: repeat(2, 10.6rem);
+          gap: .6rem;
+        }
+        #listView .desktop-controls > div:nth-child(3) {
+          width: 9.5rem;
+          position: relative;
+        }
+        #listView #detailSearchPanel {
+          left: 0;
+          right: auto;
+          width: min(520px, calc(100vw - 2rem));
+        }
+
+        #desktopStatusCounts {
+          display: flex !important;
+          position: static;
+          width: auto;
+          margin: 0;
+          gap: .72rem;
+          justify-content: flex-start;
+          align-items: center;
+          white-space: nowrap;
+        }
+        #desktopStatusCounts .status-stat { min-width: 3.55rem; text-align: center; }
+        #desktopStatusCounts .watch-time-stat { min-width: 7.2rem; text-align: center; }
+        #desktopStatusCounts .status-stat > div:first-child,
+        #desktopStatusCounts .watch-time-stat > div:first-child { font-size: 1.12rem !important; }
+        #desktopStatusCounts .status-stat > div:last-child,
+        #desktopStatusCounts .watch-time-stat > div:last-child { font-size: .7rem !important; }
+
+        #desktopAddBtn {
+          position: static !important;
+          justify-self: end;
+          width: 8.9rem !important;
+          height: 3.25rem !important;
+          border-radius: .38rem !important;
+          border: 1px solid #d8cfbd !important;
+          outline: 1px solid rgba(216,207,189,.45);
+          outline-offset: -5px;
+          background: #17283a !important;
+          color: #f5efe3 !important;
+          box-shadow: 0 2px 5px rgba(23,40,58,.20) !important;
+          font-size: .88rem !important;
+          font-weight: 600;
+          letter-spacing: .045em;
+          line-height: 1;
+          display: flex !important;
+          align-items: center;
+          justify-content: center;
+        }
+        #desktopAddBtn:hover { background: #21374d !important; }
+
+        /* Slightly stronger framed-poster shadow. */
+        #listView .movie-card .movie-card-poster {
+          box-shadow: 0 5px 11px rgba(45, 38, 29, .27), 0 2px 3px rgba(45, 38, 29, .16) !important;
+        }
+      }
+
+
+      /* ===== v14: 新規登録画面をトップページのヴィンテージテーマへ統一 ===== */
+      #formView { background: #eee9df; min-height: 100vh; }
+      #formView header {
+        background-color: #f4f0e8;
+        background-image: repeating-linear-gradient(
+          90deg,
+          #fbfaf6 0,
+          #fbfaf6 63px,
+          #e8e2d7 63px,
+          #e8e2d7 126px
+        );
+        border-color: #bfb3a0 !important;
+      }
+      #formView #formBackBtn,
+      #formView #saveBtn,
+      #formView #fetchBtn {
+        border-radius: .38rem !important;
+        border: 1px solid #d8cfbd !important;
+        outline: 1px solid rgba(216,207,189,.45);
+        outline-offset: -5px;
+        background: #17283a !important;
+        color: #f5efe3 !important;
+        box-shadow: 0 2px 5px rgba(23,40,58,.20) !important;
+        font-weight: 600;
+        letter-spacing: .045em;
+      }
+      #formView #formBackBtn:hover,
+      #formView #saveBtn:hover { background: #21374d !important; }
+      #formView #fetchBtn { background: #66705A !important; color: #f5efe3 !important; }
+      #formView #fetchBtn:hover { background: #59624f !important; }
+      #titleSuggestions { background: var(--paper-light); border-color: var(--line); }
+      .title-suggestion:hover, .title-suggestion:focus { background: #eee9df; outline: none; }
+      #formView #formBackBtn {
+        width: 2.65rem;
+        height: 2.65rem;
+        padding: 0 !important;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 auto;
+      }
+      #formView #formBackBtn svg { width: 1.2rem; height: 1.2rem; }
+      #formView #saveBtn { padding: .65rem 1.35rem !important; }
+      #formView #fetchBtn { padding-left: 1rem !important; padding-right: 1rem !important; }
+
+      /* トップページと同じ、落ち着いた星・ハートの色 */
+      #formView .star.active { color: #d4a514 !important; }
+      #formView #favoriteInputBtn { color: #777168; }
+      #formView #favoriteInputBtn.form-favorite-active {
+        color: #a33a42 !important;
+        border-color: #c8aaa8 !important;
+        background: #f4e9e6 !important;
+      }
+
+
+      /* v16: お気に入りの色・背景・枠線を同じ速度で切り替える */
+      #formView #favoriteInputBtn {
+        transition: color .18s ease, background-color .18s ease, border-color .18s ease !important;
+      }
+
+      /* v16: Movie Log 共通カスタムプルダウン（視聴日の月選択は対象外） */
+      .movie-select-native {
+        position: absolute !important;
+        width: 1px !important;
+        height: 1px !important;
+        padding: 0 !important;
+        margin: -1px !important;
+        overflow: hidden !important;
+        clip: rect(0, 0, 0, 0) !important;
+        white-space: nowrap !important;
+        border: 0 !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+      }
+      .movie-select { position: relative; width: 100%; font-family: inherit; }
+      .movie-select-button {
+        width: 100%; min-height: 42px; box-sizing: border-box;
+        display: flex; align-items: center; justify-content: space-between; gap: .65rem;
+        padding: .625rem 2.15rem .625rem .75rem;
+        border: 1px solid var(--line); border-radius: .4rem;
+        background: var(--paper-light); color: var(--ink);
+        font-family: "Zen Kaku Gothic New", -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", "Noto Sans JP", sans-serif;
+        font-size: 16px; line-height: 1.35; text-align: left;
+        cursor: pointer; position: relative;
+      }
+      .movie-select-button::after {
+        content: ""; position: absolute; right: .85rem; top: 50%;
+        width: .48rem; height: .48rem;
+        border-right: 1.5px solid #777168; border-bottom: 1.5px solid #777168;
+        transform: translateY(-68%) rotate(45deg); transition: transform .16s ease;
+      }
+      .movie-select.open .movie-select-button::after { transform: translateY(-30%) rotate(225deg); }
+      .movie-select-button:focus-visible { outline: 2px solid rgba(115,116,93,.42); outline-offset: 2px; }
+      .movie-select-menu {
+        display: none; position: absolute; left: 0; right: 0; top: calc(100% + .3rem);
+        z-index: 80; max-height: min(18rem, 48vh); overflow-y: auto;
+        padding: .3rem; border: 1px solid var(--line); border-radius: .45rem;
+        background: #faf7f0; box-shadow: 0 10px 24px rgba(52,51,47,.14);
+      }
+      .movie-select.open .movie-select-menu { display: block; }
+      .movie-select-option {
+        width: 100%; border: 0; border-radius: .3rem; background: transparent;
+        color: var(--ink); padding: .58rem .7rem; text-align: left;
+        font-family: "Zen Kaku Gothic New", -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", "Noto Sans JP", sans-serif;
+        font-size: .92rem; line-height: 1.35; cursor: pointer;
+      }
+      .movie-select-option:hover,
+      .movie-select-option:focus-visible { background: #ecebdd; outline: none; }
+      .movie-select-option.is-selected { background: #E4E4D5; color: #59624f; font-weight: 500; }
+      #formView .movie-select-button { min-height: 48px; padding-left: 1rem; }
+      @media (max-width: 1023px) {
+        .movie-select-menu { max-height: none; }
+      }
+
+      /* v17: プルダウンの密度・スクロール表示を整理 */
+      .movie-select-menu { max-height: none; overflow-y: visible; }
+      .movie-select-option { padding: .4rem .7rem; }
+      .movie-select.is-long .movie-select-menu {
+        max-height: min(18rem, 48vh);
+        overflow-y: scroll;
+        scrollbar-width: thin;
+        scrollbar-color: #aaa292 #eee9df;
+      }
+      .movie-select.is-long .movie-select-menu::-webkit-scrollbar { width: 7px; }
+      .movie-select.is-long .movie-select-menu::-webkit-scrollbar-track { background: #eee9df; border-radius: 8px; }
+      .movie-select.is-long .movie-select-menu::-webkit-scrollbar-thumb { background: #aaa292; border-radius: 8px; border: 1px solid #eee9df; }
+      @media (max-width: 1023px) {
+        .movie-select.is-long .movie-select-menu { max-height: min(16rem, 42vh); }
+      }
+
+      /* v18: トップページのカスタムプルダウンを詳細検索と同じ文字サイズに統一 */
+      @media (min-width: 1024px) {
+        #listView .desktop-controls > div:nth-child(2) .movie-select {
+          min-width: 0;
+        }
+        #listView .desktop-controls > div:nth-child(2) .movie-select-button {
+          height: 42px;
+          min-height: 42px;
+          font-size: 14px !important;
+          line-height: 1.2;
+          padding-top: .5rem;
+          padding-bottom: .5rem;
+        }
+        #listView .desktop-controls > div:nth-child(2) .movie-select-label {
+          display: block;
+          min-width: 0;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: clip;
+        }
+      }
+
+      /* v17: 詳細検索の状態色を Movie Log のテーマカラーへ統一 */
+      #detailSearchPanel .tab-btn,
+      #favoriteFilterBtn { transition: background-color .15s ease, color .15s ease, border-color .15s ease; border: 1px solid transparent; }
+      #detailSearchPanel .tab-btn[data-status="all"].tab-inactive { background: #e2e4e5; color: #59616a; }
+      #detailSearchPanel .tab-btn[data-status="all"].tab-active { background: #17283a; color: #f5efe3; }
+      #detailSearchPanel .tab-btn[data-status="watched"].tab-inactive { background: #eee7d6; color: #8a7444; }
+      #detailSearchPanel .tab-btn[data-status="watched"].tab-active { background: #a7863f; color: #fffaf0; }
+      #detailSearchPanel .tab-btn[data-status="watching"].tab-inactive { background: #E4E4D5; color: #66705A; }
+      #detailSearchPanel .tab-btn[data-status="watching"].tab-active { background: #66705A; color: #f7f4eb; }
+      #detailSearchPanel .tab-btn[data-status="unwatched"].tab-inactive { background: #E8E3DA; color: #777168; }
+      #detailSearchPanel .tab-btn[data-status="unwatched"].tab-active { background: #777168; color: #faf7f0; }
+      #favoriteFilterBtn.tab-inactive { background: #efe3e3; color: #7b4548; border-color: #dcc7c8; }
+      #favoriteFilterBtn.tab-active { background: #7b4548; color: #fff7f4; border-color: #7b4548; }
+
+      /* ===== v20: 詳細画面をMovie Logのヴィンテージテーマへ統一 ===== */
+      #detailView {
+        background: #eee9df;
+        min-height: 100vh;
+        color: #2f3337;
+      }
+      #detailView header {
+        background-color: #f4f0e8;
+        background-image: repeating-linear-gradient(
+          90deg,
+          #fbfaf6 0,
+          #fbfaf6 63px,
+          #e8e2d7 63px,
+          #e8e2d7 126px
+        );
+        border-color: #bfb3a0 !important;
+      }
+      #detailView #detailBackBtn {
+        width: 2.65rem;
+        height: 2.65rem;
+        padding: 0 !important;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 auto;
+        border-radius: .38rem !important;
+        border: 1px solid #d8cfbd !important;
+        outline: 1px solid rgba(216,207,189,.45);
+        outline-offset: -5px;
+        background: #17283a !important;
+        color: #f5efe3 !important;
+        box-shadow: 0 2px 5px rgba(23,40,58,.20) !important;
+      }
+      #detailView #detailBackBtn:hover { background: #21374d !important; }
+      #detailView #detailBackBtn svg { width: 1.2rem; height: 1.2rem; }
+      #detailView header h2 {
+        color: #2f3337 !important;
+        font-weight: 600;
+        letter-spacing: .035em;
+      }
+
+      #detailView .detail-poster-frame {
+        border: 4px solid #292824;
+        border-radius: 0;
+        overflow: hidden;
+        background: #292824;
+        box-shadow: 0 5px 11px rgba(45,38,29,.27), 0 2px 3px rgba(45,38,29,.16);
+      }
+      #detailView .detail-poster {
+        display: block;
+        width: 100%;
+        height: 100%;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+      }
+      #detailView .detail-title { color: #292824 !important; }
+      #detailView .detail-rating { color: #d4a514 !important; }
+
+      #detailView .detail-favorite-heart {
+        color: #a33a42;
+        font-size: 1.08rem;
+        line-height: 1;
+      }
+
+      #detailView .detail-genre-chip {
+        display: inline-block;
+        background: #e4e4d5;
+        color: #59624f;
+        border: 1px solid #cfd0bc;
+        font-size: .75rem;
+        padding: .25rem .62rem;
+        margin-right: .38rem;
+        margin-bottom: .38rem;
+        border-radius: .32rem;
+      }
+      #detailView .detail-section-title,
+      #detailView .detail-label {
+        color: #777168 !important;
+      }
+      #detailView .detail-label {
+        font-weight: 600;
+      }
+      #detailView .detail-value,
+      #detailView .detail-synopsis {
+        color: #35383a !important;
+      }
+      #detailView .detail-watch-info {
+        border-top-color: #c9bfaf !important;
+      }
+      #detailView .detail-status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: .32rem;
+        padding: .25rem .62rem;
+        border-radius: .32rem;
+        font-size: .78rem;
+        font-weight: 600;
+        line-height: 1.2;
+        white-space: nowrap;
+      }
+      #detailView .detail-status-watched {
+        background: #eee7d6;
+        color: #8a7444;
+        border: 1px solid transparent;
+      }
+      #detailView .detail-status-watching {
+        background: #e4e4d5;
+        color: #66705a;
+        border: 1px solid transparent;
+      }
+      #detailView .detail-status-unwatched {
+        background: #e8e3da;
+        color: #777168;
+        border: 1px solid transparent;
+      }
+
+      #detailView .detail-comment {
+        background: #f5f1e8 !important;
+        border: 1px solid #d8cfbd;
+        border-radius: .38rem !important;
+        box-shadow: inset 0 0 0 3px rgba(255,255,255,.28);
+      }
+      #detailView .detail-action-edit,
+      #detailView .detail-action-delete {
+        border-radius: .38rem !important;
+        border: 1px solid #d8cfbd !important;
+        outline: 1px solid rgba(216,207,189,.42);
+        outline-offset: -5px;
+        color: #f5efe3 !important;
+        box-shadow: 0 2px 5px rgba(23,40,58,.16);
+        font-weight: 600;
+        letter-spacing: .035em;
+      }
+      #detailView .detail-action-edit { background: #17283a !important; }
+      #detailView .detail-action-edit:hover { background: #21374d !important; }
+      #detailView .detail-action-delete { background: #7b4548 !important; }
+      #detailView .detail-action-delete:hover { background: #6d3d40 !important; }
+
+      @media (min-width: 1024px) {
+        #detailView .detail-poster-frame {
+          width: 240px;
+          height: 360px;
+          margin: 0;
+        }
+      }
+      @media (max-width: 1023px) {
+        #detailView .detail-poster-frame {
+          width: 12rem;
+          height: 18rem;
+          margin: 0 auto;
+        }
+      }
+
     </style>
   </head>
   <body class="min-h-screen pb-24">
@@ -103,25 +889,29 @@
       <!-- ヘッダー -->
       <header class="sticky top-0 z-20 bg-white border-b border-gray-200">
         <div
-          class="max-w-lg mx-auto px-4 py-3 flex items-center gap-3"
+          class="top-header-row max-w-lg desktop-wide mx-auto px-4 py-3 flex items-center gap-3"
         >
-          <h1 class="text-2xl sm:text-3xl font-bold text-slate-800 tracking-tight shrink-0">
+          <h1 class="movie-log-brand text-2xl sm:text-3xl font-bold text-slate-800 tracking-tight shrink-0">
             Movie Log
           </h1>
 
           <!-- 視聴状況の件数（情報表示のみ・クリック不可） -->
           <div id="statusCounts" class="flex-1 flex items-center justify-center gap-2 sm:gap-4 text-center min-w-0" aria-label="視聴状況の件数">
-            <div class="min-w-0">
-              <div id="watchedCount" class="text-sm sm:text-base font-bold text-slate-800 leading-tight">0</div>
+            <div class="status-stat min-w-0">
+              <div id="watchedCount" class="movie-log-number text-sm sm:text-base font-bold text-slate-800 leading-tight">0</div>
               <div class="text-[9px] sm:text-[10px] text-slate-500 whitespace-nowrap leading-tight mt-0.5">視聴済</div>
             </div>
-            <div class="min-w-0">
-              <div id="watchingCount" class="text-sm sm:text-base font-bold text-slate-800 leading-tight">0</div>
+            <div class="status-stat min-w-0">
+              <div id="watchingCount" class="movie-log-number text-sm sm:text-base font-bold text-slate-800 leading-tight">0</div>
               <div class="text-[9px] sm:text-[10px] text-slate-500 whitespace-nowrap leading-tight mt-0.5">視聴中</div>
             </div>
-            <div class="min-w-0">
-              <div id="unwatchedCount" class="text-sm sm:text-base font-bold text-slate-800 leading-tight">0</div>
+            <div class="status-stat min-w-0">
+              <div id="unwatchedCount" class="movie-log-number text-sm sm:text-base font-bold text-slate-800 leading-tight">0</div>
               <div class="text-[9px] sm:text-[10px] text-slate-500 whitespace-nowrap leading-tight mt-0.5">未視聴</div>
+            </div>
+                    <div class="watch-time-stat min-w-0 hidden lg:block">
+              <div id="movieWatchTime" class="movie-log-number text-sm sm:text-base font-bold text-slate-800 leading-tight">0h 00m</div>
+              <div class="text-[9px] sm:text-[10px] text-slate-500 whitespace-nowrap leading-tight mt-0.5">映画視聴時間</div>
             </div>
           </div>
 
@@ -144,21 +934,23 @@
               />
             </svg>
           </button>
+          
         </div>
+<div class="desktop-controls">
         <!-- 検索バー -->
-        <div id="searchBar" class="hidden max-w-lg mx-auto px-4 pb-3">
+        <div id="searchBar" class="hidden max-w-lg desktop-wide mx-auto px-4 pb-3 lg:block">
           <input
             id="searchInput"
             type="text"
             placeholder="タイトルで検索..."
-            class="w-full border border-gray-300 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-slate-400"
+            class="w-full border border-gray-300 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-slate-400 vintage-control"
           />
         </div>
         <!-- 並び替え・ジャンル -->
-        <div class="max-w-lg mx-auto px-4 pb-3 grid grid-cols-2 gap-2">
+        <div class="max-w-lg desktop-wide mx-auto px-4 pb-3 grid grid-cols-2 gap-2 lg:grid-cols-2">
           <select
             id="sortSelect"
-            class="border border-gray-300 rounded-xl px-3 py-2.5 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-slate-400"
+            class="border border-gray-300 rounded-xl px-3 py-2.5 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-slate-400 vintage-control"
           >
             <option value="ratingDesc">評価が高い順</option>
             <option value="ratingAsc">評価が低い順</option>
@@ -172,7 +964,7 @@
 
           <select
             id="genreFilter"
-            class="border border-gray-300 rounded-xl px-3 py-2.5 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-slate-400"
+            class="border border-gray-300 rounded-xl px-3 py-2.5 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-slate-400 vintage-control"
           >
             <option value="">ジャンル：すべて</option>
             <option value="アクション">アクション</option>
@@ -193,8 +985,8 @@
         </div>
 
         <!-- 詳細検索 -->
-        <div class="max-w-lg mx-auto px-4 pb-3">
-          <button id="detailSearchToggle" type="button" class="w-full px-4 py-2.5 rounded-xl bg-slate-100 text-slate-700 font-medium hover:bg-slate-200">⚙ 詳細検索</button>
+        <div class="max-w-lg desktop-wide mx-auto px-4 pb-3">
+          <button id="detailSearchToggle" type="button" class="vintage-control w-full px-4 py-2.5 rounded-xl bg-slate-100 text-slate-700 font-normal hover:bg-slate-200">詳細検索</button>
           <div id="detailSearchPanel" class="hidden mt-2 p-4 bg-white rounded-2xl border border-gray-200">
             <p class="text-sm font-semibold text-slate-700 mb-2">視聴状況</p>
             <div class="flex gap-2 overflow-x-auto">
@@ -243,29 +1035,49 @@
             <button id="clearDetailSearchBtn" type="button" class="mt-4 w-full border border-gray-300 text-slate-600 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50">条件をクリア</button>
           </div>
         </div>
+        <div id="desktopStatusCounts" class="hidden lg:flex" aria-label="視聴状況の件数（PC）">
+          <div class="status-stat min-w-0">
+            <div id="watchedCountDesktop" class="movie-log-number font-bold text-slate-800 leading-tight">0</div>
+            <div class="text-slate-500 whitespace-nowrap leading-tight mt-0.5">視聴済</div>
+          </div>
+          <div class="status-stat min-w-0">
+            <div id="watchingCountDesktop" class="movie-log-number font-bold text-slate-800 leading-tight">0</div>
+            <div class="text-slate-500 whitespace-nowrap leading-tight mt-0.5">視聴中</div>
+          </div>
+          <div class="status-stat min-w-0">
+            <div id="unwatchedCountDesktop" class="movie-log-number font-bold text-slate-800 leading-tight">0</div>
+            <div class="text-slate-500 whitespace-nowrap leading-tight mt-0.5">未視聴</div>
+          </div>
+          <div class="watch-time-stat min-w-0">
+            <div id="movieWatchTimeDesktop" class="movie-log-number font-bold text-slate-800 leading-tight">0h 00m</div>
+            <div class="text-slate-500 whitespace-nowrap leading-tight mt-0.5">映画視聴時間</div>
+          </div>
+        </div>
+        <button id="desktopAddBtn" type="button" class="hidden lg:flex text-sm font-medium shrink-0">＋ 新規登録</button>
+        </div>
 
       </header>
 
       <!-- カード一覧 -->
-      <main class="max-w-lg mx-auto px-3 py-4">
+      <main class="max-w-lg desktop-wide mx-auto px-3 py-4">
         <div id="movieGrid" class="grid grid-cols-3 gap-3">
           <!-- カードがここに入る -->
         </div>
         <div id="emptyState" class="hidden text-center py-20 text-gray-400">
           <p class="text-5xl mb-3">🎬</p>
           <p class="text-base">まだ作品がありません</p>
-          <p class="text-sm mt-1">右下の ＋ から追加してみよう</p>
+          <p class="text-sm mt-1">「新規登録」から追加してみよう</p>
         </div>
       </main>
 
-      <!-- データ管理 -->
-      <section class="max-w-lg mx-auto px-4 pb-4">
-        <div class="bg-white border border-gray-200 rounded-2xl p-4">
-          <p class="text-sm font-semibold text-slate-700 mb-1">データ管理</p>
+      <!-- データ管理（普段は控えめに表示） -->
+      <section class="mx-auto px-4 pb-5 pt-2">
+        <button id="dataManagementToggle" type="button" class="data-management-toggle text-xs py-2" aria-expanded="false">⚙ データ管理</button>
+        <div id="dataManagementPanel" class="data-management-panel hidden mt-1 pt-3 pb-1 max-w-md">
           <p class="text-xs text-slate-500 mb-3">登録した作品データをファイルに保存・復元できます。</p>
-          <div class="grid grid-cols-2 gap-2">
-            <button id="backupSaveBtn" type="button" class="border border-gray-300 bg-white text-slate-700 py-2.5 px-3 rounded-xl text-sm font-medium active:bg-gray-50">バックアップを保存</button>
-            <button id="backupRestoreBtn" type="button" class="border border-gray-300 bg-white text-slate-700 py-2.5 px-3 rounded-xl text-sm font-medium active:bg-gray-50">バックアップから復元</button>
+          <div class="flex flex-wrap gap-2">
+            <button id="backupSaveBtn" type="button" class="vintage-control border border-gray-300 bg-white text-slate-700 py-2 px-3 rounded-xl text-xs font-medium active:bg-gray-50">バックアップを保存</button>
+            <button id="backupRestoreBtn" type="button" class="vintage-control border border-gray-300 bg-white text-slate-700 py-2 px-3 rounded-xl text-xs font-medium active:bg-gray-50">バックアップから復元</button>
           </div>
           <input id="backupFileInput" type="file" accept="application/json,.json" class="hidden" />
         </div>
@@ -283,7 +1095,7 @@
     <!-- ========== 詳細画面 ========== -->
     <div id="detailView" class="hidden">
       <header class="sticky top-0 z-20 bg-white border-b border-gray-200">
-        <div class="max-w-lg mx-auto px-4 py-3 flex items-center gap-3">
+        <div class="max-w-lg desktop-detail-wide mx-auto px-4 py-3 flex items-center gap-3">
           <button
             id="detailBackBtn"
             class="p-1 text-slate-600 hover:bg-gray-100 rounded-full"
@@ -316,7 +1128,7 @@
     <div id="formView" class="hidden">
       <header class="sticky top-0 z-20 bg-white border-b border-gray-200">
         <div
-          class="max-w-lg mx-auto px-4 py-3 flex items-center justify-between"
+          class="max-w-lg desktop-form-wide mx-auto px-4 py-3 flex items-center justify-between"
         >
           <div class="flex items-center gap-3">
             <button
@@ -351,19 +1163,23 @@
         </div>
       </header>
 
-      <main class="max-w-lg mx-auto px-4 py-6 space-y-5">
+      <main class="max-w-lg desktop-form-wide mx-auto px-4 py-6 space-y-5">
         <!-- タイトル + ポスター取得 -->
         <div>
           <label class="block text-sm font-medium text-slate-700 mb-1"
             >タイトル</label
           >
-          <div class="flex gap-2">
-            <input
-              id="titleInput"
-              type="text"
-              placeholder="例：ジュラシック・パーク"
-              class="flex-1 border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-slate-400"
-            />
+          <div class="flex gap-2 relative">
+            <div class="flex-1 relative min-w-0">
+              <input
+                id="titleInput"
+                type="text"
+                autocomplete="off"
+                placeholder="例：ジュラシック・パーク"
+                class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-slate-400"
+              />
+              <div id="titleSuggestions" class="hidden absolute left-0 right-0 top-full mt-1 z-50 border rounded-lg shadow-lg overflow-hidden max-h-80 overflow-y-auto"></div>
+            </div>
             <button
               id="fetchBtn"
               class="bg-indigo-600 text-white px-4 py-3 rounded-xl text-sm font-medium whitespace-nowrap active:bg-indigo-700"
@@ -410,8 +1226,9 @@
           />
         </div>
 
+        <div class="desktop-rating-status-row">
         <!-- 評価・お気に入り -->
-        <div class="grid grid-cols-[minmax(0,1fr)_auto] gap-4 items-end">
+        <div class="grid grid-cols-[minmax(0,1fr)_auto] desktop-rating-favorite gap-4 items-end">
           <div class="min-w-0">
             <label class="block text-sm font-medium text-slate-700 mb-1">評価</label>
             <div id="ratingStars" class="flex gap-1.5 sm:gap-2 py-1 whitespace-nowrap">
@@ -438,7 +1255,7 @@
         </div>
 
         <!-- 視聴ステータス -->
-        <div>
+        <div class="desktop-status-compact">
           <label class="block text-sm font-medium text-slate-700 mb-1"
             >視聴ステータス</label
           >
@@ -450,6 +1267,7 @@
             <option value="watching">視聴中</option>
             <option value="unwatched">未視聴</option>
           </select>
+        </div>
         </div>
 
         <!-- ジャンル -->
@@ -477,6 +1295,7 @@
           <p class="text-xs text-slate-500 mt-2">複数選択できます。もう一度押すと解除できます。</p>
         </div>
 
+        <div class="desktop-three-cols">
         <!-- 公開年 -->
         <div>
           <label class="block text-sm font-medium text-slate-700 mb-1"
@@ -519,6 +1338,8 @@
           />
         </div>
 
+        </div>
+
         <!-- 監督 -->
         <div>
           <label class="block text-sm font-medium text-slate-700 mb-1"
@@ -550,16 +1371,16 @@
           <label class="block text-sm font-medium text-slate-700 mb-1"
             >キャスト</label
           >
-          <input
+          <textarea
             id="castInput"
-            type="text"
+            rows="1"
             placeholder="例：サム・ニール, ローラ・ダーン, ジェフ・ゴールドブラム..."
             class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-slate-400"
-          />
+          ></textarea>
         </div>
 
         <!-- シリーズ -->
-        <div class="grid grid-cols-[minmax(0,1fr)_7rem] gap-3">
+        <div class="grid grid-cols-[minmax(0,1fr)_7rem] desktop-series gap-3">
           <div class="min-w-0">
             <label class="block text-sm font-medium text-slate-700 mb-1">シリーズ名</label>
             <input
@@ -587,7 +1408,7 @@
           <label class="block text-sm font-medium text-slate-700 mb-1"
             >視聴日</label
           >
-          <div class="relative w-full min-w-0 box-border border border-gray-300 rounded-xl bg-white focus-within:ring-2 focus-within:ring-slate-400">
+          <div class="desktop-watch-date relative w-full min-w-0 box-border border border-gray-300 rounded-xl bg-white focus-within:ring-2 focus-within:ring-slate-400">
             <input
               id="watchDateInput"
               type="month"
@@ -630,10 +1451,112 @@
       let selectedGenres = [];
       let editingId = null;
       let currentRating = 0;
+      let titleSearchTimer = null;
+      let selectedTmdbResult = null;
+      let titleSearchRequestId = 0;
 
       // TMDbはSupabase Edge Function経由で取得
       const TMDB_FUNCTION_URL =
         "https://saxbjwyjwshpsiiamoes.supabase.co/functions/v1/tmdb";
+
+
+
+      // ===================== Movie Log 共通カスタムプルダウン =====================
+      function syncMovieSelect(select) {
+        if (!select || !select._movieSelect) return;
+        const { button, menu } = select._movieSelect;
+        const selected = select.options[select.selectedIndex] || select.options[0];
+        button.querySelector(".movie-select-label").textContent = selected ? selected.textContent : "";
+        menu.querySelectorAll(".movie-select-option").forEach((item) => {
+          const active = item.dataset.value === select.value;
+          item.classList.toggle("is-selected", active);
+          item.setAttribute("aria-selected", active ? "true" : "false");
+        });
+      }
+
+      function rebuildMovieSelect(select) {
+        if (!select || !select._movieSelect) return;
+        const { menu } = select._movieSelect;
+        menu.innerHTML = "";
+        [...select.options].forEach((option) => {
+          const item = document.createElement("button");
+          item.type = "button";
+          item.className = "movie-select-option";
+          item.dataset.value = option.value;
+          item.textContent = option.textContent;
+          item.disabled = option.disabled;
+          item.setAttribute("role", "option");
+          item.addEventListener("click", () => {
+            select.value = option.value;
+            select.dispatchEvent(new Event("change", { bubbles: true }));
+            syncMovieSelect(select);
+            select._movieSelect.wrapper.classList.remove("open");
+            select._movieSelect.button.setAttribute("aria-expanded", "false");
+            select._movieSelect.button.focus();
+          });
+          menu.appendChild(item);
+        });
+        syncMovieSelect(select);
+      }
+
+      function closeMovieSelects(except = null) {
+        document.querySelectorAll(".movie-select.open").forEach((wrapper) => {
+          if (wrapper === except) return;
+          wrapper.classList.remove("open");
+          const button = wrapper.querySelector(".movie-select-button");
+          if (button) button.setAttribute("aria-expanded", "false");
+        });
+      }
+
+      function setupMovieSelects() {
+        document.querySelectorAll("select").forEach((select) => {
+          if (select._movieSelect) return;
+          const wrapper = document.createElement("div");
+          wrapper.className = "movie-select";
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "movie-select-button";
+          button.setAttribute("aria-haspopup", "listbox");
+          button.setAttribute("aria-expanded", "false");
+          button.innerHTML = '<span class="movie-select-label"></span>';
+          const menu = document.createElement("div");
+          menu.className = "movie-select-menu";
+          menu.setAttribute("role", "listbox");
+
+          select.parentNode.insertBefore(wrapper, select);
+          wrapper.appendChild(select);
+          wrapper.appendChild(button);
+          wrapper.appendChild(menu);
+          select.classList.add("movie-select-native");
+          if (select.id === "yearFilter" || select.id === "yearInput") {
+            wrapper.classList.add("is-long");
+          }
+          select._movieSelect = { wrapper, button, menu };
+
+          button.addEventListener("click", (event) => {
+            event.stopPropagation();
+            rebuildMovieSelect(select);
+            const willOpen = !wrapper.classList.contains("open");
+            closeMovieSelects(wrapper);
+            wrapper.classList.toggle("open", willOpen);
+            button.setAttribute("aria-expanded", willOpen ? "true" : "false");
+          });
+          button.addEventListener("keydown", (event) => {
+            if (event.key === "Escape") {
+              wrapper.classList.remove("open");
+              button.setAttribute("aria-expanded", "false");
+            }
+          });
+          select.addEventListener("change", () => syncMovieSelect(select));
+          new MutationObserver(() => rebuildMovieSelect(select)).observe(select, { childList: true, subtree: true, characterData: true });
+          rebuildMovieSelect(select);
+        });
+        document.addEventListener("click", () => closeMovieSelects());
+      }
+
+      function syncAllMovieSelects() {
+        document.querySelectorAll("select").forEach((select) => syncMovieSelect(select));
+      }
 
       // ===================== 初期化 =====================
       function init() {
@@ -641,6 +1564,8 @@
         setupEvents();
         populateYearFilter();
         populateYearInput();
+        setupMovieSelects();
+        syncAllMovieSelects();
         renderList();
       }
 
@@ -648,8 +1573,30 @@
         // 詳細検索の開閉
         const detailSearchToggle = document.getElementById("detailSearchToggle");
         const detailSearchPanel = document.getElementById("detailSearchPanel");
-        detailSearchToggle.addEventListener("click", () => {
+        detailSearchToggle.addEventListener("click", (event) => {
+          event.stopPropagation();
           detailSearchPanel.classList.toggle("hidden");
+        });
+        detailSearchPanel.addEventListener("click", (event) => {
+          event.stopPropagation();
+
+          // 監督・キャストの予測候補は、候補枠の外をクリックしたら閉じる
+          [
+            ["directorFilter", "directorSuggestions"],
+            ["castFilter", "castSuggestions"],
+          ].forEach(([inputId, suggestionsId]) => {
+            const input = document.getElementById(inputId);
+            const box = document.getElementById(suggestionsId);
+            if (!input || !box) return;
+            if (!input.contains(event.target) && !box.contains(event.target)) {
+              box.classList.add("hidden");
+            }
+          });
+        });
+        document.addEventListener("click", (event) => {
+          if (detailSearchPanel.classList.contains("hidden")) return;
+          if (detailSearchToggle.contains(event.target) || detailSearchPanel.contains(event.target)) return;
+          detailSearchPanel.classList.add("hidden");
         });
 
         // タブ
@@ -720,6 +1667,7 @@
           currentCastFilter = "";
           document.getElementById("ratingFilter").value = "";
           document.getElementById("yearFilter").value = "";
+          syncAllMovieSelects();
           updateFavoriteFilterButton();
           document.getElementById("directorFilter").value = "";
           document.getElementById("castFilter").value = "";
@@ -753,6 +1701,7 @@
         document
           .getElementById("addFab")
           .addEventListener("click", () => openForm());
+        document.getElementById("desktopAddBtn").addEventListener("click", () => openForm());
 
         // 戻るボタン
         document
@@ -772,6 +1721,15 @@
           e.target.value = e.target.value.replace(/\D/g, "");
         });
 
+        // データ管理の開閉
+        document.getElementById("dataManagementToggle").addEventListener("click", () => {
+          const panel = document.getElementById("dataManagementPanel");
+          const toggle = document.getElementById("dataManagementToggle");
+          const willOpen = panel.classList.contains("hidden");
+          panel.classList.toggle("hidden", !willOpen);
+          toggle.setAttribute("aria-expanded", willOpen ? "true" : "false");
+        });
+
         // バックアップ
         document.getElementById("backupSaveBtn").addEventListener("click", saveBackup);
         document.getElementById("backupRestoreBtn").addEventListener("click", () => {
@@ -780,6 +1738,29 @@
           fileInput.click();
         });
         document.getElementById("backupFileInput").addEventListener("change", restoreBackup);
+
+        // タイトル候補（2文字以上・入力停止から約400ms後にTMDb検索）
+        const titleInput = document.getElementById("titleInput");
+        const titleSuggestions = document.getElementById("titleSuggestions");
+        titleInput.addEventListener("input", () => {
+          selectedTmdbResult = null;
+          clearTimeout(titleSearchTimer);
+          const query = titleInput.value.trim();
+          if (query.length < 2) {
+            titleSuggestions.classList.add("hidden");
+            titleSuggestions.innerHTML = "";
+            return;
+          }
+          titleSearchTimer = setTimeout(() => searchTitleSuggestions(query), 400);
+        });
+        titleInput.addEventListener("keydown", (e) => {
+          if (e.key === "Escape") titleSuggestions.classList.add("hidden");
+        });
+        document.addEventListener("click", (e) => {
+          if (!titleInput.contains(e.target) && !titleSuggestions.contains(e.target)) {
+            titleSuggestions.classList.add("hidden");
+          }
+        });
 
         // ポスター取得
         document
@@ -986,35 +1967,35 @@
         const renderMovieCard = (movie) => {
           const card = document.createElement("div");
           card.className =
-            "bg-white rounded-xl overflow-hidden card-shadow active:scale-[0.98] transition-transform cursor-pointer";
+            "movie-card bg-white rounded-xl overflow-hidden card-shadow active:scale-[0.98] transition-transform cursor-pointer";
           card.onclick = () => openDetail(movie.id);
 
           let statusHtml = "";
           if (movie.status === "watched") {
             const rating = movie.rating || 0;
-            statusHtml = `<div class="text-amber-400 text-xs">${"★".repeat(rating)}${"☆".repeat(5 - rating)}</div>`;
+            statusHtml = `<div class="text-xs" style="color:#d4a514">${"★".repeat(rating)}${"☆".repeat(5 - rating)}</div>`;
           } else if (movie.status === "watching") {
             const rating = movie.rating || 0;
             const ratingHtml = rating > 0
-              ? `<span class="text-amber-400 text-xs">${"★".repeat(rating)}${"☆".repeat(5 - rating)}</span>`
+              ? `<span class="text-xs" style="color:#d4a514">${"★".repeat(rating)}${"☆".repeat(5 - rating)}</span>`
               : "";
-            statusHtml = `<div class="flex items-center gap-2"><span class="inline-block bg-blue-50 text-blue-600 text-[10px] px-2 py-0.5 rounded-full">視聴中</span>${ratingHtml}</div>`;
+            statusHtml = `<div class="flex items-center gap-2"><span class="inline-block text-[10px] px-2 py-0.5 rounded-full" style="background-color:#E4E4D5;color:#66705A">視聴中</span>${ratingHtml}</div>`;
           } else {
-            statusHtml = `<span class="inline-block bg-gray-100 text-gray-500 text-[10px] px-2 py-0.5 rounded-full">未視聴</span>`;
+            statusHtml = `<span class="inline-block text-[10px] px-2 py-0.5 rounded-full" style="background-color:#E8E3DA;color:#777168">未視聴</span>`;
           }
 
           card.innerHTML = `
-          <div class="aspect-[2/3] bg-gray-200 relative">
+          <div class="movie-card-poster aspect-[2/3] bg-gray-200 relative">
             <img src="${movie.thumbnail || "https://via.placeholder.com/300x450?text=No+Image"}" 
                  alt="${escapeHtml(movie.title)}"
                  class="w-full h-full object-cover"
                  onerror="this.src='https://via.placeholder.com/300x450?text=No+Image'">
           </div>
-          <div class="p-2.5">
+          <div class="movie-card-body p-2.5">
             <h3 class="font-semibold text-sm text-slate-800 line-clamp-2 leading-tight mb-1">${escapeHtml(movie.title)}</h3>
             <div class="flex items-center gap-1.5">
               ${statusHtml}
-              ${movie.favorite ? '<span class="text-rose-500 text-sm leading-none" title="お気に入り" aria-label="お気に入り">♥</span>' : ''}
+              ${movie.favorite ? '<span class="text-sm leading-none" style="color:#a33a42" title="お気に入り" aria-label="お気に入り">♥</span>' : ''}
             </div>
           </div>
         `;
@@ -1027,8 +2008,25 @@
             const groupName = (movie.seriesName || "").trim() || "シリーズなし";
             if (groupName !== lastGroup) {
               const heading = document.createElement("div");
-              heading.className = "col-span-3 pt-2 pb-1 text-sm font-semibold text-slate-700 border-b border-gray-200";
-              heading.textContent = groupName;
+              heading.className = "series-heading";
+
+              const headingName = document.createElement("span");
+              headingName.className = "series-heading-name";
+              headingName.textContent = groupName;
+              heading.appendChild(headingName);
+
+              const headingLine = document.createElement("span");
+              headingLine.className = "series-heading-line";
+              heading.setAttribute("aria-label", groupName);
+              heading.appendChild(headingLine);
+
+              if (groupName !== "シリーズなし") {
+                const headingLabel = document.createElement("span");
+                headingLabel.className = "series-heading-label";
+                headingLabel.textContent = "FILM SERIES";
+                heading.appendChild(headingLabel);
+              }
+
               grid.appendChild(heading);
               lastGroup = groupName;
             }
@@ -1048,6 +2046,13 @@
           { watched: "視聴済", watching: "視聴中", unwatched: "未視聴" }[
             movie.status
           ] || "未視聴";
+        const detailStatusClass =
+          movie.status === "watched"
+            ? "detail-status-watched"
+            : movie.status === "watching"
+              ? "detail-status-watching"
+              : "detail-status-unwatched";
+        const detailStatusHtml = `<span class="detail-status-badge ${detailStatusClass}">${statusLabel}</span>`;
         const genres = (movie.genre || "")
           .split(",")
           .map((g) => g.trim())
@@ -1055,73 +2060,82 @@
         const genreHtml = genres
           .map(
             (g) =>
-              `<span class="inline-block bg-slate-100 text-slate-700 text-xs px-2.5 py-1 rounded-full mr-1.5 mb-1.5">${escapeHtml(g)}</span>`,
+              `<span class="detail-genre-chip">${escapeHtml(g)}</span>`,
           )
           .join("");
 
         const content = document.getElementById("detailContent");
         content.innerHTML = `
-        <div class="flex justify-center mb-5">
-          <img src="${movie.thumbnail || "https://via.placeholder.com/300x450?text=No+Image"}" 
-               alt="${escapeHtml(movie.title)}"
-               class="w-48 h-72 object-cover rounded-xl shadow-lg bg-gray-200"
-               onerror="this.src='https://via.placeholder.com/300x450?text=No+Image'">
-        </div>
-
-        <h2 class="text-2xl font-bold text-slate-800 mb-2 text-center">${escapeHtml(movie.title)}</h2>
-
-        <div class="flex justify-center mb-3">
-          <button id="favoriteDetailBtn" onclick="toggleFavorite('${movie.id}')" class="px-4 py-2 rounded-full text-sm font-medium ${movie.favorite ? 'bg-rose-50 text-rose-600' : 'bg-slate-100 text-slate-600'}">${movie.favorite ? '♥ お気に入り' : '♡ お気に入りに追加'}</button>
-        </div>
-        
-        <div class="text-amber-400 text-xl text-center mb-3">${"★".repeat(movie.rating || 0)}${"☆".repeat(5 - (movie.rating || 0))}</div>
-
-        <div class="flex flex-wrap justify-center mb-5">${genreHtml || '<span class="text-gray-400 text-sm">ジャンル未設定</span>'}</div>
-
-        ${
-          movie.synopsis
-            ? `
-          <div class="mb-6">
-            <h3 class="text-sm font-semibold text-slate-500 mb-1.5">あらすじ</h3>
-            <p class="text-slate-700 text-sm leading-relaxed">${escapeHtml(movie.synopsis)}</p>
+        <div class="detail-pc-layout">
+          <div class="flex justify-center mb-5 lg:mb-0">
+            <div class="detail-poster-frame">
+              <img src="${movie.thumbnail || "https://via.placeholder.com/300x450?text=No+Image"}" 
+                   alt="${escapeHtml(movie.title)}"
+                   class="detail-poster object-cover bg-gray-200"
+                   onerror="this.src='https://via.placeholder.com/300x450?text=No+Image'">
+            </div>
           </div>
-        `
-            : ""
-        }
 
-        <div class="space-y-3 text-sm mb-6">
-          ${movie.year ? `<div class="flex"><span class="w-20 text-slate-500 shrink-0">公開年</span><span class="text-slate-800">${escapeHtml(movie.year)}</span></div>` : ""}
-          ${movie.runtime ? `<div class="flex"><span class="w-20 text-slate-500 shrink-0">上映時間</span><span class="text-slate-800">${escapeHtml(movie.runtime)}分</span></div>` : ""}
-          ${movie.country ? `<div class="flex"><span class="w-20 text-slate-500 shrink-0">制作国</span><span class="text-slate-800">${escapeHtml(movie.country)}</span></div>` : ""}
-          ${movie.director ? `<div class="flex"><span class="w-20 text-slate-500 shrink-0">監督</span><span class="text-slate-800">${escapeHtml(movie.director)}</span></div>` : ""}
-          ${movie.writer ? `<div class="flex"><span class="w-20 text-slate-500 shrink-0">脚本</span><span class="text-slate-800">${escapeHtml(movie.writer)}</span></div>` : ""}
-          ${movie.cast ? `<div class="flex"><span class="w-20 text-slate-500 shrink-0">キャスト</span><span class="text-slate-800">${escapeHtml(movie.cast)}</span></div>` : ""}
-          ${movie.seriesName ? `<div class="flex"><span class="w-20 text-slate-500 shrink-0">シリーズ</span><span class="text-slate-800">${escapeHtml(movie.seriesName)}${movie.seriesOrder ? `（${escapeHtml(movie.seriesOrder)}）` : ""}</span></div>` : ""}
-        </div>
+          <div class="detail-main">
+            <div class="detail-title-row">
+              <h2 class="detail-title text-2xl font-bold text-slate-800 mb-2 text-center">${escapeHtml(movie.title)}</h2>
+              <div class="detail-desktop-actions hidden lg:flex">
+                <button onclick="openForm('${movie.id}')" class="detail-action-edit px-5 py-2 text-sm">編集</button>
+                <button onclick="deleteMovie('${movie.id}')" class="detail-action-delete px-5 py-2 text-sm">削除</button>
+              </div>
+            </div>
 
-        <div class="border-t border-gray-100 pt-4 space-y-3 text-sm mb-6">
-          <div class="flex"><span class="w-24 text-slate-500 shrink-0">ステータス</span><span class="text-slate-800 font-medium">${statusLabel}</span></div>
-          ${movie.watchDate ? `<div class="flex"><span class="w-24 text-slate-500 shrink-0">視聴日</span><span class="text-slate-800">${formatWatchDate(movie.watchDate)}</span></div>` : ""}
-        </div>
+            <div class="detail-meta-row">
+              <div class="detail-rating text-amber-400 text-xl text-center mb-3">${"★".repeat(movie.rating || 0)}${"☆".repeat(5 - (movie.rating || 0))}</div>
+              ${movie.favorite ? '<div class="detail-favorite flex justify-center mb-3"><span class="detail-favorite-heart" title="お気に入り" aria-label="お気に入り">♥</span></div>' : ''}
+              <div class="detail-genres flex flex-wrap justify-center mb-5">${genreHtml || '<span class="text-gray-400 text-sm">ジャンル未設定</span>'}</div>
+            </div>
 
-        ${
-          movie.comment
-            ? `
-          <div class="bg-slate-50 rounded-xl p-4 mb-6">
-            <h3 class="text-sm font-semibold text-slate-500 mb-1.5">コメント</h3>
-            <p class="text-slate-700 text-sm leading-relaxed whitespace-pre-wrap">${escapeHtml(movie.comment)}</p>
+            ${
+              movie.synopsis
+                ? `
+              <div class="mb-6">
+                <h3 class="detail-section-title text-sm font-semibold mb-2">あらすじ</h3>
+                <p class="detail-synopsis text-sm leading-relaxed">${escapeHtml(movie.synopsis)}</p>
+              </div>
+            `
+                : ""
+            }
+
+            <div class="detail-info-short text-sm">
+              ${movie.year ? `<div><span class="detail-label shrink-0">公開年</span><span class="detail-value">${escapeHtml(movie.year)}</span></div>` : ""}
+              ${movie.runtime ? `<div><span class="detail-label shrink-0">上映時間</span><span class="detail-value">${escapeHtml(movie.runtime)}分</span></div>` : ""}
+              ${movie.country ? `<div><span class="detail-label shrink-0">制作国</span><span class="detail-value">${escapeHtml(movie.country)}</span></div>` : ""}
+            </div>
+
+            <div class="detail-info-long space-y-3 text-sm mb-6">
+              ${movie.director ? `<div class="flex"><span class="detail-label w-20 shrink-0">監督</span><span class="detail-value">${escapeHtml(movie.director)}</span></div>` : ""}
+              ${movie.writer ? `<div class="flex"><span class="detail-label w-20 shrink-0">脚本</span><span class="detail-value">${escapeHtml(movie.writer)}</span></div>` : ""}
+              ${movie.cast ? `<div class="flex"><span class="detail-label w-20 shrink-0">キャスト</span><span class="detail-value">${escapeHtml(movie.cast)}</span></div>` : ""}
+              ${movie.seriesName ? `<div class="flex"><span class="detail-label w-20 shrink-0">シリーズ</span><span class="detail-value">${escapeHtml(movie.seriesName)}${movie.seriesOrder ? `（${escapeHtml(movie.seriesOrder)}）` : ""}</span></div>` : ""}
+            </div>
+
+            <div class="detail-watch-info border-t border-gray-100 text-sm">
+              <div class="flex gap-2 items-center"><span class="detail-label shrink-0">ステータス</span>${detailStatusHtml}</div>
+              ${movie.watchDate ? `<div class="flex gap-2"><span class="detail-label shrink-0">視聴日</span><span class="detail-value">${formatWatchDate(movie.watchDate)}</span></div>` : ""}
+            </div>
+
+            ${
+              movie.comment
+                ? `
+              <div class="detail-comment p-5 mb-4">
+                <h3 class="detail-section-title text-sm font-semibold mb-1.5">コメント</h3>
+                <p class="detail-value text-sm leading-relaxed whitespace-pre-wrap">${escapeHtml(movie.comment)}</p>
+              </div>
+            `
+                : ""
+            }
+
+            <div class="detail-mobile-actions flex gap-3 lg:hidden">
+              <button onclick="openForm('${movie.id}')" class="detail-action-edit flex-1 py-3">編集</button>
+              <button onclick="deleteMovie('${movie.id}')" class="detail-action-delete flex-1 py-3">削除</button>
+            </div>
           </div>
-        `
-            : ""
-        }
-
-        <div class="flex gap-3">
-          <button onclick="openForm('${movie.id}')" class="flex-1 bg-slate-800 text-white py-3 rounded-xl font-medium active:bg-slate-700">
-            編集
-          </button>
-          <button onclick="deleteMovie('${movie.id}')" class="flex-1 bg-red-500 text-white py-3 rounded-xl font-medium active:bg-red-600">
-            削除
-          </button>
         </div>
       `;
 
@@ -1134,6 +2148,13 @@
         currentRating = 0;
         window.currentFormFavorite = false;
         window.currentMediaType = null;
+        selectedTmdbResult = null;
+        clearTimeout(titleSearchTimer);
+        const titleSuggestions = document.getElementById("titleSuggestions");
+        if (titleSuggestions) {
+          titleSuggestions.innerHTML = "";
+          titleSuggestions.classList.add("hidden");
+        }
 
         // リセット
         document.getElementById("titleInput").value = "";
@@ -1204,6 +2225,7 @@
         }
 
         updateWatchDatePlaceholder();
+        syncAllMovieSelects();
         showView("form");
       }
 
@@ -1238,6 +2260,7 @@
         btn.classList.toggle("bg-white", !isFavorite);
         btn.classList.toggle("text-slate-500", !isFavorite);
         btn.classList.toggle("border-gray-300", !isFavorite);
+        btn.classList.toggle("form-favorite-active", isFavorite);
       }
 
       function toggleFormFavorite() {
@@ -1302,9 +2325,32 @@
         const watched = movies.filter((m) => m.status === "watched").length;
         const watching = movies.filter((m) => m.status === "watching").length;
         const unwatched = movies.filter((m) => m.status === "unwatched" || !m.status).length;
-        document.getElementById("watchedCount").textContent = watched;
-        document.getElementById("watchingCount").textContent = watching;
-        document.getElementById("unwatchedCount").textContent = unwatched;
+        ["watchedCount", "watchedCountDesktop"].forEach((id) => {
+          const el = document.getElementById(id);
+          if (el) el.textContent = watched;
+        });
+        ["watchingCount", "watchingCountDesktop"].forEach((id) => {
+          const el = document.getElementById(id);
+          if (el) el.textContent = watching;
+        });
+        ["unwatchedCount", "unwatchedCountDesktop"].forEach((id) => {
+          const el = document.getElementById(id);
+          if (el) el.textContent = unwatched;
+        });
+
+         // 視聴済みの「映画」だけを合計（TVシリーズは含めない）
+         const totalMinutes = movies
+           .filter((m) => m.status === "watched" && m.mediaType === "movie")
+           .reduce((sum, m) => {
+             const minutes = Number.parseInt(m.runtime, 10);
+             return sum + (Number.isFinite(minutes) && minutes > 0 ? minutes : 0);
+           }, 0);
+         const hours = Math.floor(totalMinutes / 60);
+         const minutes = totalMinutes % 60;
+         ["movieWatchTime", "movieWatchTimeDesktop"].forEach((id) => {
+           const watchTimeEl = document.getElementById(id);
+           if (watchTimeEl) watchTimeEl.textContent = `${hours}h ${String(minutes).padStart(2, "0")}m`;
+         });
       }
 
       function normalizePersonName(value) {
@@ -1465,6 +2511,53 @@
         return data;
       }
 
+      async function searchTitleSuggestions(query) {
+        const box = document.getElementById("titleSuggestions");
+        const requestId = ++titleSearchRequestId;
+        try {
+          const searchData = await callTmdbFunction({ action: "search", query });
+          if (requestId !== titleSearchRequestId || document.getElementById("titleInput").value.trim() !== query) return;
+          const results = (searchData.results || [])
+            .filter((item) => item.media_type === "movie" || item.media_type === "tv")
+            .slice(0, 8);
+          renderTitleSuggestions(results);
+        } catch (err) {
+          console.error(err);
+          if (requestId === titleSearchRequestId) {
+            box.innerHTML = "";
+            box.classList.add("hidden");
+          }
+        }
+      }
+
+      function renderTitleSuggestions(results) {
+        const box = document.getElementById("titleSuggestions");
+        box.innerHTML = "";
+        if (!results.length) {
+          box.classList.add("hidden");
+          return;
+        }
+        results.forEach((item) => {
+          const title = item.media_type === "tv" ? item.name : item.title;
+          const date = item.media_type === "tv" ? item.first_air_date : item.release_date;
+          const year = (date || "").slice(0, 4);
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "title-suggestion w-full flex items-center gap-3 px-3 py-2 text-left border-b border-stone-200 last:border-b-0";
+          const poster = item.poster_path
+            ? `<img src="https://image.tmdb.org/t/p/w92${item.poster_path}" alt="" class="w-10 h-14 object-cover shrink-0 bg-stone-200">`
+            : `<div class="w-10 h-14 shrink-0 bg-stone-200 flex items-center justify-center text-[10px] text-stone-500">NO IMAGE</div>`;
+          button.innerHTML = `${poster}<span class="min-w-0"><span class="block text-sm text-slate-800 truncate">${escapeHtml(title || "タイトル不明")}</span><span class="block text-xs text-slate-500 mt-0.5">${year ? escapeHtml(year) + "年" : "公開年不明"}</span></span>`;
+          button.addEventListener("click", () => {
+            selectedTmdbResult = item;
+            document.getElementById("titleInput").value = title || "";
+            box.classList.add("hidden");
+          });
+          box.appendChild(button);
+        });
+        box.classList.remove("hidden");
+      }
+
       async function fetchPoster() {
         const title = document.getElementById("titleInput").value.trim();
         const statusEl = document.getElementById("fetchStatus");
@@ -1474,20 +2567,23 @@
           return;
         }
 
+        document.getElementById("titleSuggestions").classList.add("hidden");
         statusEl.classList.remove("hidden");
         statusEl.textContent = "取得中...";
         statusEl.className = "text-sm mt-1.5 text-blue-600";
 
         try {
-          // Supabase Edge Function経由で映画・テレビシリーズの両方を検索
-          const searchData = await callTmdbFunction({
-            action: "search",
-            query: title,
-          });
-
-          const result = (searchData.results || []).find(
-            (item) => item.media_type === "movie" || item.media_type === "tv",
-          );
+          // 候補から選択済みならその作品を使用。未選択なら従来どおりタイトル検索の先頭候補を使用
+          let result = selectedTmdbResult;
+          if (!result) {
+            const searchData = await callTmdbFunction({
+              action: "search",
+              query: title,
+            });
+            result = (searchData.results || []).find(
+              (item) => item.media_type === "movie" || item.media_type === "tv",
+            );
+          }
 
           if (!result) {
             statusEl.textContent =
@@ -1675,7 +2771,7 @@
           ロマンス: "恋愛",
           恋愛: "恋愛",
           "サイエンスフィクション": "SF",
-          ドラマ: "ヒューマン系",
+          ドラマ: "ドラマ",
           スリラー: "サスペンス",
           サスペンス: "サスペンス",
         };
