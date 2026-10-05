@@ -2773,7 +2773,11 @@ body:has(#formView:not(.hidden)) { padding-bottom: 0 !important; }
               const bSeries = (b.seriesName || "").trim();
               if (aSeries && !bSeries) return -1;
               if (!aSeries && bSeries) return 1;
-              if (!aSeries && !bSeries) return (a.title || "").localeCompare(b.title || "", "ja");
+              if (!aSeries && !bSeries) {
+                const aYear = getReleaseYear(a) ?? Number.MAX_SAFE_INTEGER;
+                const bYear = getReleaseYear(b) ?? Number.MAX_SAFE_INTEGER;
+                return aYear - bYear || (a.title || "").localeCompare(b.title || "", "ja");
+              }
               const seriesCompare = aSeries.localeCompare(bSeries, "ja");
               if (seriesCompare !== 0) return seriesCompare;
               const aOrder = getReleaseYear(a) ? (Number(a.seriesOrder) || Number.MAX_SAFE_INTEGER) : Number.MAX_SAFE_INTEGER;
