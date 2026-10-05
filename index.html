@@ -895,8 +895,786 @@
           );
         }
       }
+
+
+      /* ===== v25: スマホ版トップページ調整（PC版は変更しない） ===== */
+      @media (max-width: 1023px) {
+        body:has(#listView:not(.hidden)) { padding-bottom: 0 !important; }
+        #listView { min-height: 100vh; display: flex; flex-direction: column; background: #eee9df; }
+
+        /* MOVIE LOG → 集計4項目 → 検索2×2 の順に整理 */
+        #listView .top-header-row {
+          max-width: 100%;
+          padding: .9rem .8rem .65rem;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: .7rem;
+        }
+        #listView .movie-log-brand {
+          width: 100%;
+          text-align: center;
+          font-size: 2rem !important;
+          line-height: 1;
+          letter-spacing: .055em;
+        }
+        #listView #statusCounts {
+          width: 100%;
+          display: grid !important;
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+          align-items: end;
+          gap: .15rem;
+          text-align: center;
+        }
+        #listView #statusCounts .status-stat,
+        #listView #statusCounts .watch-time-stat {
+          display: block !important;
+          min-width: 0;
+          padding: 0;
+          border: 0;
+        }
+        #listView #statusCounts .status-stat > div:first-child,
+        #listView #statusCounts .watch-time-stat > div:first-child {
+          font-size: .98rem !important;
+          white-space: nowrap;
+        }
+        #listView #statusCounts .status-stat > div:last-child,
+        #listView #statusCounts .watch-time-stat > div:last-child {
+          font-size: .58rem !important;
+          white-space: nowrap;
+        }
+        #listView #searchToggleBtn { display: none !important; }
+
+        /* タイトル検索｜並び順 / ジャンル｜詳細検索 */
+        #listView .desktop-controls {
+          width: 100%;
+          max-width: 100%;
+          margin: 0;
+          padding: 0 .8rem .8rem;
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: .5rem;
+          align-items: start;
+        }
+        #listView .desktop-controls > div { max-width: none; width: 100%; margin: 0; padding: 0; }
+        #listView .desktop-controls > div:nth-child(2),
+        #listView .desktop-controls > div:nth-child(3) { display: contents; }
+        #listView #searchBar { display: block !important; grid-column: 1; grid-row: 1; }
+        #listView #sortSelect { grid-column: 2; grid-row: 1; }
+        #listView #genreFilter { grid-column: 1; grid-row: 2; }
+        #listView #detailSearchToggle { grid-column: 2; grid-row: 2; }
+        #listView #searchInput,
+        #listView #sortSelect,
+        #listView #genreFilter,
+        #listView #detailSearchToggle {
+          width: 100%;
+          height: 40px;
+          min-width: 0;
+          padding-top: .55rem;
+          padding-bottom: .55rem;
+          padding-left: .65rem;
+          font-size: .72rem !important;
+          line-height: 1.1;
+          box-sizing: border-box;
+        }
+        #listView #sortSelect,
+        #listView #genreFilter { padding-right: 1.45rem; }
+        #listView #detailSearchPanel {
+          grid-column: 1 / -1;
+          grid-row: 3;
+          width: 100%;
+          margin-top: 0;
+        }
+        #listView #desktopStatusCounts,
+        #listView #desktopAddBtn { display: none !important; }
+
+        /* 3列カードは維持し、PC版と同じ額装風に */
+        #listView > main {
+          width: 100%;
+          max-width: none;
+          margin: 0;
+          padding: .9rem .65rem 1rem;
+          background: #eee9df !important;
+          background-image: none !important;
+          flex: 0 0 auto;
+        }
+        #listView > main::before { display: none !important; }
+        #listView #movieGrid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem .55rem; }
+        #listView .movie-card {
+          background: transparent !important;
+          border-radius: 0 !important;
+          box-shadow: none !important;
+          overflow: visible !important;
+        }
+        #listView .movie-card .movie-card-poster {
+          border: 2px solid #46423b;
+          border-radius: 0;
+          overflow: hidden;
+          box-shadow: 0 2px 5px rgba(45,38,29,.14);
+          background: #46423b;
+        }
+        #listView .movie-card .movie-card-body { padding: .55rem .1rem .2rem; text-align: center; }
+        #listView .movie-card h3 { text-align: center; }
+        #listView .movie-card .movie-card-body > div { justify-content: center; }
+
+        /* データ管理を含むストライプを画面最下部まで */
+        #listView > section {
+          width: 100%;
+          max-width: none;
+          margin-top: 0;
+          padding: .65rem 1rem 5.5rem;
+          flex: 1 0 auto;
+          min-height: 8rem;
+          background-color: #f4f0e8;
+          background-image: repeating-linear-gradient(
+            90deg,
+            #fbfaf6 0,
+            #fbfaf6 63px,
+            #e8e2d7 63px,
+            #e8e2d7 126px
+          );
+        }
+        #listView > section > * { max-width: 100%; }
+        #listView .data-management-panel { background: transparent; }
+      }
+
+
+      /* ===== v26: スマホ版トップ微調整 ===== */
+      @media (max-width: 1023px) {
+        /* 上下のストライプ：フッター基準の色・幅で統一し、中央を濃色にして左右対称 */
+        #listView header,
+        #listView > section {
+          background-color: #f4f0e8 !important;
+          background-image: linear-gradient(
+            90deg,
+            #e8e2d7 0,
+            #e8e2d7 63px,
+            #fbfaf6 63px,
+            #fbfaf6 126px
+          ) !important;
+          background-size: 126px 100% !important;
+          background-position: calc(50% + 31.5px) 0 !important;
+          background-repeat: repeat !important;
+        }
+
+        /* 集計4項目を少し中央へ寄せる */
+        #listView #statusCounts {
+          width: min(88%, 24rem);
+          margin-left: auto;
+          margin-right: auto;
+          gap: .05rem;
+        }
+
+        /* 4つの操作欄の文字サイズ・枠・1行表示を統一 */
+        #listView #searchInput,
+        #listView #sortSelect,
+        #listView #genreFilter,
+        #listView #detailSearchToggle {
+          font-size: .78rem !important;
+          white-space: nowrap;
+          border: 1px solid var(--line) !important;
+        }
+        #listView #detailSearchToggle {
+          display: block;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        /* データ管理は文字だけの表示に */
+        #listView #dataManagementToggle::before { content: none !important; }
+
+        /* 空表示：レトロな映画チケット */
+        #listView #emptyState .empty-ticket {
+          width: 5.4rem;
+          height: auto;
+          margin: 0 auto .85rem;
+          color: #777168;
+          opacity: .78;
+        }
+      }
+
+
+
+      /* ===== v27: スマホ版トップ 検索欄統一・中央ストライプ反転 ===== */
+      @media (max-width: 1023px) {
+        /* v26の色味・幅は維持し、画面中央だけ明るいストライプにする */
+        #listView header,
+        #listView > section {
+          background-position: calc(50% - 31.5px) 0 !important;
+        }
+
+        /* タイトル検索 / 並び順 / ジャンル / 詳細検索を同じ枠・文字サイズに統一 */
+        #listView #searchInput,
+        #listView #sortSelect,
+        #listView #genreFilter,
+        #listView #detailSearchToggle {
+          width: 100% !important;
+          height: 48px !important;
+          min-height: 48px !important;
+          margin: 0 !important;
+          padding: 0 .85rem !important;
+          border: 1px solid var(--line) !important;
+          border-radius: .65rem !important;
+          background-color: #fbfaf6 !important;
+          color: #3f3d39 !important;
+          font-family: 'Zen Kaku Gothic New', sans-serif !important;
+          font-size: 1rem !important;
+          font-weight: 400 !important;
+          line-height: 1 !important;
+          box-sizing: border-box !important;
+          white-space: nowrap !important;
+        }
+        #listView #searchInput::placeholder {
+          color: #a8a5a0 !important;
+          opacity: 1 !important;
+          font-size: 1rem !important;
+          font-weight: 400 !important;
+        }
+        #listView #sortSelect,
+        #listView #genreFilter {
+          padding-right: 2rem !important;
+        }
+        #listView #detailSearchToggle {
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          overflow: hidden !important;
+          text-overflow: ellipsis !important;
+        }
+      }
+
+
+      /* ===== v29: スマホ操作欄の並び替え / 空表示チケットをPC・スマホ共通化 ===== */
+
+      /* 空のときのCINEMAチケット：PC版でも同じ絵を使用 */
+      #listView #emptyState .empty-ticket {
+        display: block;
+        width: 5.4rem;
+        height: auto;
+        margin: 0 auto .85rem;
+        color: #777168;
+        opacity: .78;
+      }
+
+      @media (max-width: 1023px) {
+        /*
+          1行目：並び順｜ジャンル
+          2行目：タイトル検索｜詳細検索
+          ※ DOMは変えず、スマホ時のグリッド位置だけ変更
+        */
+        #listView #sortSelect {
+          grid-column: 1 !important;
+          grid-row: 1 !important;
+        }
+        #listView #genreFilter {
+          grid-column: 2 !important;
+          grid-row: 1 !important;
+        }
+        #listView #searchBar {
+          display: block !important;
+          grid-column: 1 !important;
+          grid-row: 2 !important;
+        }
+        #listView #detailSearchToggle {
+          grid-column: 2 !important;
+          grid-row: 2 !important;
+        }
+        #listView #detailSearchPanel {
+          grid-column: 1 / -1 !important;
+          grid-row: 3 !important;
+        }
+      }
+
+
+      /* ジャンル説明文を削除してもPC版の下方向レイアウト位置は維持 */
+      @media (min-width: 1024px) {
+        #formView .genre-help-spacer {
+          display: block;
+          height: 1rem;
+          margin-top: .5rem;
+        }
+      }
+
+      /* ===== v30: スマホ版トップ最終調整 + 新規登録画面 ===== */
+      @media (max-width: 1023px) {
+        /* ビュー切替を確実にする：新規登録時にトップ画面を残さない */
+        #listView.hidden,
+        #detailView.hidden,
+        #formView.hidden {
+          display: none !important;
+        }
+
+        /* トップ：詳細検索だけ左揃えに統一 */
+        #listView #detailSearchToggle {
+          justify-content: flex-start !important;
+          text-align: left !important;
+        }
+
+        /* 新規登録：トップと同じストライプ */
+        #formView {
+          min-height: 100vh;
+          background: #eee9df !important;
+        }
+        #formView header,
+        #formView .mobile-form-footer {
+          background-color: #f4f0e8 !important;
+          background-image: linear-gradient(
+            90deg,
+            #e8e2d7 0,
+            #e8e2d7 63px,
+            #fbfaf6 63px,
+            #fbfaf6 126px
+          ) !important;
+          background-size: 126px 100% !important;
+          background-position: calc(50% - 31.5px) 0 !important;
+          background-repeat: repeat !important;
+          border-color: #bfb3a0 !important;
+        }
+
+        /* ヘッダーの保存はスマホでは非表示 */
+        #formView header #saveBtn {
+          display: none !important;
+        }
+
+        /* 評価とお気に入りを横並びでひとまとまりに */
+        #formView .desktop-rating-status-row {
+          display: block !important;
+        }
+        #formView .desktop-rating-favorite {
+          display: grid !important;
+          grid-template-columns: minmax(0, 1fr) auto !important;
+          gap: .75rem !important;
+          align-items: end !important;
+        }
+        #formView .desktop-rating-favorite {
+          grid-template-columns: auto minmax(0, 1fr) !important;
+          gap: 0 !important;
+        }
+        #formView .desktop-rating-favorite > div:last-child {
+          min-width: 4.4rem;
+          justify-self: center !important;
+        }
+
+        /* ジャンル説明文はスマホでは空白ごと削除 */
+        #formView .genre-help-spacer {
+          display: none !important;
+        }
+
+        /* 公開年・上映時間・制作国の縦間隔を統一 */
+        #formView .desktop-three-cols > div + div {
+          margin-top: 1.25rem !important;
+        }
+        #formView .desktop-status-compact {
+          width: 100% !important;
+          margin-top: 1.25rem !important;
+        }
+
+        /* コメント直下の保存エリア */
+        #formView main {
+          padding-bottom: 0 !important;
+        }
+        #formView .mobile-form-spacer {
+          display: none !important;
+        }
+        #formView .mobile-form-footer {
+          display: flex !important;
+          justify-content: center !important;
+          margin: 1.5rem -1rem 0 !important;
+          padding: 2rem 1rem calc(2rem + env(safe-area-inset-bottom)) !important;
+          border-top: 1px solid #bfb3a0 !important;
+        }
+        #formView #mobileSaveBtn {
+          min-width: 8.5rem;
+          padding: .8rem 1.5rem;
+          border-radius: .38rem;
+          border: 1px solid #d8cfbd;
+          outline: 1px solid rgba(216,207,189,.45);
+          outline-offset: -5px;
+          background: #17283a;
+          color: #f5efe3;
+          box-shadow: 0 2px 5px rgba(23,40,58,.20);
+          font-weight: 600;
+          letter-spacing: .045em;
+        }
+      }
+
+      @media (min-width: 1024px) {
+        #formView .mobile-form-footer {
+          display: none !important;
+        }
+      }
+
+
+
+      /* ===== v32: スマホ版 新規登録フッター・カード状態・詳細画面調整 ===== */
+      @media (max-width: 1023px) {
+        /* 共通ストライプ：現在のトップページと同じ色・幅・中央位置 */
+        #formView .mobile-form-footer,
+        #detailView header,
+        #detailView .detail-mobile-footer {
+          background-color: #f4f0e8 !important;
+          background-image: linear-gradient(
+            90deg,
+            #e8e2d7 0,
+            #e8e2d7 63px,
+            #fbfaf6 63px,
+            #fbfaf6 126px
+          ) !important;
+          background-size: 126px 100% !important;
+          background-position: calc(50% - 31.5px) 0 !important;
+          background-repeat: repeat !important;
+        }
+
+        /* 新規登録：フッターを画面幅いっぱいにしてストライプの基準を画面中央へ */
+        #formView .mobile-form-footer {
+          width: 100vw !important;
+          max-width: none !important;
+          margin: 1.5rem 0 0 calc(50% - 50vw) !important;
+          box-sizing: border-box !important;
+        }
+
+        /* トップカード：視聴中バッジはスマホでは表示しない。評価があれば星だけ残す */
+        #listView .mobile-watching-status { display: none !important; }
+
+        /* 詳細：下側にも共通ストライプを配置 */
+        #detailView { display: flex; flex-direction: column; min-height: 100vh; }
+        #detailView.hidden { display: none !important; }
+        #detailView #detailContent { width: 100%; flex: 0 0 auto; }
+        #detailView .detail-mobile-footer {
+          display: block;
+          width: 100%;
+          min-height: 7rem;
+          margin-top: 1.25rem;
+          flex: 1 0 7rem;
+          border-top: 1px solid #bfb3a0;
+        }
+
+        /* 星とお気に入りを隣に並べ、ジャンルは次の行へ */
+        #detailView .detail-meta-row {
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          flex-wrap: wrap !important;
+          column-gap: .45rem !important;
+          row-gap: .65rem !important;
+          margin-bottom: 1.4rem !important;
+        }
+        #detailView .detail-meta-row .detail-rating,
+        #detailView .detail-meta-row .detail-favorite {
+          margin: 0 !important;
+        }
+        #detailView .detail-meta-row .detail-genres {
+          flex-basis: 100%;
+          justify-content: center !important;
+          margin: 0 !important;
+        }
+
+        /* 公開年・上映時間・制作国：3列、項目名の下に値 */
+        #detailView .detail-info-short {
+          display: grid !important;
+          grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+          gap: .75rem !important;
+          margin-bottom: 1.5rem !important;
+        }
+        #detailView .detail-info-short > div {
+          display: flex !important;
+          flex-direction: column !important;
+          align-items: flex-start !important;
+          gap: .2rem !important;
+          min-width: 0;
+        }
+        #detailView .detail-info-short .detail-label,
+        #detailView .detail-info-short .detail-value {
+          display: block;
+          width: 100%;
+        }
+        /* 上映時間は見出しを太字にしない（従来仕様を維持） */
+        #detailView .detail-info-short > div:nth-child(2) .detail-label { font-weight: 400 !important; }
+
+        /* ステータス・視聴日：2列、線から余白を取り、項目名の下に値 */
+        #detailView .detail-watch-info {
+          display: grid !important;
+          grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+          gap: 1rem !important;
+          padding-top: 1.15rem !important;
+          margin-top: .25rem !important;
+        }
+        #detailView .detail-watch-item {
+          display: flex !important;
+          flex-direction: column !important;
+          align-items: flex-start !important;
+          gap: .35rem !important;
+          min-width: 0;
+        }
+        #detailView .detail-watch-item .detail-value { display: block; }
+      }
+
+      @media (min-width: 1024px) {
+        #detailView .detail-mobile-footer { display: none !important; }
+      }
+
+
+
+      /* ===== v33: 詳細情報の間隔・常時表示 / PC保存ボタン位置 ===== */
+      /* 詳細：コメント枠の上に余白を確保 */
+      #detailView .detail-comment {
+        margin-top: 1.75rem !important;
+      }
+
+      /* 詳細：上映時間・シリーズの見出しは太字 */
+      #detailView .detail-info-short > div:nth-child(2) .detail-label {
+        font-weight: 600 !important;
+      }
+      #detailView .detail-series-item .detail-label {
+        font-weight: 600 !important;
+      }
+
+      @media (min-width: 1024px) {
+        /* 公開年・上映時間・制作国：間隔を詰めて左寄せ。制作国は長い文字にも余裕を持たせる */
+        #detailView .detail-info-short {
+          display: grid !important;
+          grid-template-columns: 7.5rem 8.5rem minmax(18rem, 1fr) !important;
+          gap: .75rem .625rem !important;
+          justify-content: start !important;
+          max-width: 40rem;
+        }
+
+        /* ステータス・視聴日：上の3項目と同じ横間隔 */
+        #detailView .detail-watch-info {
+          gap: .625rem !important;
+        }
+
+        /* PC新規登録・編集：ヘッダー保存を外し、コメント下中央に配置 */
+        #formView header #saveBtn {
+          display: none !important;
+        }
+        #formView .mobile-form-spacer {
+          display: none !important;
+        }
+        #formView .mobile-form-footer {
+          display: flex !important;
+          justify-content: center !important;
+          margin: 1.5rem 0 0 !important;
+          padding: 0 0 1.5rem !important;
+          border-top: 0 !important;
+          background: none !important;
+        }
+        #formView #mobileSaveBtn {
+          min-width: 8.5rem;
+          padding: .8rem 1.5rem;
+          border-radius: .38rem;
+          border: 1px solid #d8cfbd;
+          outline: 1px solid rgba(216,207,189,.45);
+          outline-offset: -5px;
+          background: #17283a;
+          color: #f5efe3;
+          box-shadow: 0 2px 5px rgba(23,40,58,.20);
+          font-weight: 600;
+          letter-spacing: .045em;
+        }
+      }
+
+      @media (max-width: 1023px) {
+        /* スマホ詳細：3項目の間隔を約半分にし、左寄せ。制作国を少し広めに */
+        #detailView .detail-info-short {
+          grid-template-columns: .8fr .9fr 1.3fr !important;
+          gap: .375rem !important;
+          justify-content: start !important;
+        }
+        #detailView .detail-info-short > div:nth-child(2) .detail-label {
+          font-weight: 600 !important;
+        }
+        #detailView .detail-watch-info {
+          gap: .375rem !important;
+        }
+      }
+
+
+
+      /* ===== v35: 詳細情報レイアウト（PC / スマホを分離） ===== */
+      @media (min-width: 1024px) {
+        /* PC：公開年・上映時間・制作国は「項目名 値」で横一列 */
+        #detailView .detail-info-short {
+          display: flex !important;
+          flex-wrap: wrap !important;
+          align-items: center !important;
+          gap: .75rem 2.5rem !important;
+          max-width: none !important;
+          margin-bottom: 1.5rem !important;
+        }
+        #detailView .detail-info-short > div {
+          display: flex !important;
+          flex-direction: row !important;
+          align-items: center !important;
+          gap: .5rem !important;
+          min-width: 0;
+        }
+        #detailView .detail-info-short .detail-label,
+        #detailView .detail-info-short .detail-value {
+          display: inline !important;
+          width: auto !important;
+        }
+
+        /* PC：ステータス・視聴日も「項目名 値」で横並び */
+        #detailView .detail-watch-info {
+          display: flex !important;
+          flex-wrap: wrap !important;
+          align-items: center !important;
+          gap: .75rem 2.5rem !important;
+        }
+        #detailView .detail-watch-item {
+          display: flex !important;
+          flex-direction: row !important;
+          align-items: center !important;
+          gap: .5rem !important;
+          min-width: 0;
+        }
+        #detailView .detail-watch-item .detail-value {
+          display: inline !important;
+        }
+      }
+
+      @media (max-width: 1023px) {
+        /* スマホ：1行目＝公開年＋上映時間、2行目＝制作国 */
+        #detailView .detail-info-short {
+          display: grid !important;
+          grid-template-columns: auto auto !important;
+          justify-content: start !important;
+          column-gap: 1.5rem !important;
+          row-gap: 1rem !important;
+          margin-bottom: 1.5rem !important;
+        }
+        #detailView .detail-info-short > div {
+          display: flex !important;
+          flex-direction: row !important;
+          align-items: baseline !important;
+          gap: .5rem !important;
+          min-width: 0;
+        }
+        #detailView .detail-info-short > div:nth-child(3) {
+          grid-column: 1 / -1 !important;
+          width: 100% !important;
+        }
+        #detailView .detail-info-short .detail-label,
+        #detailView .detail-info-short .detail-value {
+          display: inline !important;
+          width: auto !important;
+        }
+        #detailView .detail-info-short > div:nth-child(3) .detail-value {
+          min-width: 0;
+          overflow-wrap: anywhere;
+        }
+
+        /* スマホ：ステータス・視聴日は同じ1行で、それぞれ「項目名 値」 */
+        #detailView .detail-watch-info {
+          display: grid !important;
+          grid-template-columns: auto auto !important;
+          justify-content: start !important;
+          column-gap: 1.5rem !important;
+          row-gap: .75rem !important;
+        }
+        #detailView .detail-watch-item {
+          display: flex !important;
+          flex-direction: row !important;
+          align-items: center !important;
+          gap: .5rem !important;
+          min-width: 0;
+        }
+        #detailView .detail-watch-item .detail-value {
+          display: inline !important;
+        }
+      }
 </style>
-  </head>
+  
+<style>
+/* ===== v36: 全ページのストライプ統一 + 詳細検索左揃え ===== */
+/* 1本の幅を従来PC版42px → 63px（1.5倍）に統一。
+   画面中央を濃色にし、濃 → 白 → 濃 → 白… と左右へ交互に広がる。 */
+#listView header,
+#listView > section,
+#formView header,
+#detailView header,
+#detailView .detail-mobile-footer {
+  background-color: #f4f0e8 !important;
+  background-image: linear-gradient(
+    90deg,
+    #e8e2d7 0,
+    #e8e2d7 63px,
+    #fbfaf6 63px,
+    #fbfaf6 126px
+  ) !important;
+  background-size: 126px 100% !important;
+  background-position: calc(50% - 31.5px) 0 !important;
+  background-repeat: repeat !important;
+}
+
+/* 新規登録・編集の下部エリアも同じストライプに統一 */
+#formView .mobile-form-footer {
+  background-color: #f4f0e8 !important;
+  background-image: linear-gradient(
+    90deg,
+    #e8e2d7 0,
+    #e8e2d7 63px,
+    #fbfaf6 63px,
+    #fbfaf6 126px
+  ) !important;
+  background-size: 126px 100% !important;
+  background-position: calc(50% - 31.5px) 0 !important;
+  background-repeat: repeat !important;
+}
+
+/* 詳細検索は、タイトル検索・並び順・ジャンルと同じ左揃え */
+#listView #detailSearchToggle {
+  justify-content: flex-start !important;
+  text-align: left !important;
+}
+</style>
+
+<style>
+/* ===== v37: ストライプを全幅化 + 現在の1.5倍へ ===== */
+/* 現在の63px/本 → 94.5px/本。白・ベージュを同じ幅で交互表示。 */
+#listView header,
+#listView > section,
+#formView header,
+#formView .mobile-form-footer,
+#detailView header,
+#detailView .detail-mobile-footer {
+  background-color: #f4f0e8 !important;
+  background-image: linear-gradient(
+    90deg,
+    #e8e2d7 0,
+    #e8e2d7 94.5px,
+    #fbfaf6 94.5px,
+    #fbfaf6 189px
+  ) !important;
+  background-size: 189px 100% !important;
+  background-position: calc(50% - 47.25px) 0 !important;
+  background-repeat: repeat !important;
+}
+
+/* 登録・編集画面：ヘッダーと保存エリアのストライプを画面の左右端まで伸ばす。 */
+#formView header,
+#formView .mobile-form-footer {
+  width: 100vw !important;
+  max-width: none !important;
+  margin-left: calc(50% - 50vw) !important;
+  margin-right: calc(50% - 50vw) !important;
+  box-sizing: border-box !important;
+}
+
+/* PCでは既存の保存ボタン位置を保ったまま、背景だけ全幅ストライプにする。 */
+@media (min-width: 1024px) {
+  #formView .mobile-form-footer {
+    display: flex !important;
+    justify-content: center !important;
+    margin-top: 1.5rem !important;
+    margin-bottom: 0 !important;
+    padding: 0 0 1.5rem !important;
+    border-top: 0 !important;
+  }
+}
+</style>
+</head>
   <body class="min-h-screen pb-24">
     <!-- ========== 一覧画面 ========== -->
     <div id="listView">
@@ -1078,15 +1856,20 @@
           <!-- カードがここに入る -->
         </div>
         <div id="emptyState" class="hidden text-center py-20 text-gray-400">
-          <p class="text-5xl mb-3">🎬</p>
+          <svg class="empty-ticket" viewBox="0 0 160 96" role="img" aria-label="CINEMA チケット" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 16h136v18c-8 0-14 6-14 14s6 14 14 14v18H12V62c8 0 14-6 14-14s-6-14-14-14V16Z" fill="none" stroke="currentColor" stroke-width="3"/>
+            <path d="M42 20v56M118 20v56" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="4 5"/>
+            <path d="M54 31h52M54 65h52" fill="none" stroke="currentColor" stroke-width="1.5"/>
+            <text x="80" y="54" text-anchor="middle" fill="currentColor" font-family="Georgia, 'Times New Roman', serif" font-size="18" font-weight="700" letter-spacing="2">CINEMA</text>
+          </svg>
           <p class="text-base">まだ作品がありません</p>
-          <p class="text-sm mt-1">「新規登録」から追加してみよう</p>
+          <p class="text-sm mt-1">「＋」から追加してみよう</p>
         </div>
       </main>
 
       <!-- データ管理（普段は控えめに表示） -->
       <section class="mx-auto px-4 pb-5 pt-2">
-        <button id="dataManagementToggle" type="button" class="data-management-toggle text-xs py-2" aria-expanded="false">⚙ データ管理</button>
+        <button id="dataManagementToggle" type="button" class="data-management-toggle text-xs py-2" aria-expanded="false">データ管理</button>
         <div id="dataManagementPanel" class="data-management-panel hidden mt-1 pt-3 pb-1 max-w-md">
           <p class="text-xs text-slate-500 mb-3">登録した作品データをファイルに保存・復元できます。</p>
           <div class="flex flex-wrap gap-2">
@@ -1136,6 +1919,7 @@
       <main id="detailContent" class="max-w-lg mx-auto px-4 py-6">
         <!-- 詳細内容がここに入る -->
       </main>
+      <div class="detail-mobile-footer" aria-hidden="true"></div>
     </div>
 
     <!-- ========== 登録・編集画面 ========== -->
@@ -1306,7 +2090,7 @@
             <button type="button" data-genre="ドラマ" class="genre-btn border border-gray-300 rounded-xl px-3 py-2.5 text-sm bg-white">ドラマ</button>
           </div>
           <input type="hidden" id="genreInput" value="" />
-          <p class="text-xs text-slate-500 mt-2">複数選択できます。もう一度押すと解除できます。</p>
+          <div class="genre-help-spacer" aria-hidden="true"></div>
         </div>
 
         <div class="desktop-three-cols">
@@ -1446,7 +2230,10 @@
           ></textarea>
         </div>
 
-        <div class="h-8"></div>
+        <div class="h-8 mobile-form-spacer"></div>
+        <div class="mobile-form-footer">
+          <button id="mobileSaveBtn" type="button">保存</button>
+        </div>
       </main>
     </div>
 
@@ -1729,6 +2516,7 @@
 
         // 保存
         document.getElementById("saveBtn").addEventListener("click", saveMovie);
+        document.getElementById("mobileSaveBtn").addEventListener("click", saveMovie);
 
         // 上映時間は数字のみ入力
         document.getElementById("runtimeInput").addEventListener("input", (e) => {
@@ -1993,7 +2781,7 @@
             const ratingHtml = rating > 0
               ? `<span class="text-xs" style="color:#d4a514">${"★".repeat(rating)}${"☆".repeat(5 - rating)}</span>`
               : "";
-            statusHtml = `<div class="flex items-center gap-2"><span class="inline-block text-[10px] px-2 py-0.5 rounded-full" style="background-color:#E4E4D5;color:#66705A">視聴中</span>${ratingHtml}</div>`;
+            statusHtml = `<div class="flex items-center gap-2"><span class="mobile-watching-status inline-block text-[10px] px-2 py-0.5 rounded-full" style="background-color:#E4E4D5;color:#66705A">視聴中</span>${ratingHtml}</div>`;
           } else {
             statusHtml = `<span class="inline-block text-[10px] px-2 py-0.5 rounded-full" style="background-color:#E8E3DA;color:#777168">未視聴</span>`;
           }
@@ -2126,24 +2914,18 @@
               ${movie.director ? `<div class="flex"><span class="detail-label w-20 shrink-0">監督</span><span class="detail-value">${escapeHtml(movie.director)}</span></div>` : ""}
               ${movie.writer ? `<div class="flex"><span class="detail-label w-20 shrink-0">脚本</span><span class="detail-value">${escapeHtml(movie.writer)}</span></div>` : ""}
               ${movie.cast ? `<div class="flex"><span class="detail-label w-20 shrink-0">キャスト</span><span class="detail-value">${escapeHtml(movie.cast)}</span></div>` : ""}
-              ${movie.seriesName ? `<div class="flex"><span class="detail-label w-20 shrink-0">シリーズ</span><span class="detail-value">${escapeHtml(movie.seriesName)}${movie.seriesOrder ? `（${escapeHtml(movie.seriesOrder)}）` : ""}</span></div>` : ""}
+              ${movie.seriesName ? `<div class="flex detail-series-item"><span class="detail-label w-20 shrink-0">シリーズ</span><span class="detail-value">${escapeHtml(movie.seriesName)}${movie.seriesOrder ? `（${escapeHtml(movie.seriesOrder)}）` : ""}</span></div>` : ""}
             </div>
 
             <div class="detail-watch-info border-t border-gray-100 text-sm">
-              <div class="flex gap-2 items-center"><span class="detail-label shrink-0">ステータス</span>${detailStatusHtml}</div>
-              ${movie.watchDate ? `<div class="flex gap-2"><span class="detail-label shrink-0">視聴日</span><span class="detail-value">${formatWatchDate(movie.watchDate)}</span></div>` : ""}
+              <div class="detail-watch-item detail-status-item"><span class="detail-label shrink-0">ステータス</span>${detailStatusHtml}</div>
+              <div class="detail-watch-item detail-date-item"><span class="detail-label shrink-0">視聴日</span><span class="detail-value">${movie.watchDate ? formatWatchDate(movie.watchDate) : ""}</span></div>
             </div>
 
-            ${
-              movie.comment
-                ? `
-              <div class="detail-comment p-5 mb-4">
-                <h3 class="detail-section-title text-sm font-semibold mb-1.5">コメント</h3>
-                <p class="detail-value text-sm leading-relaxed whitespace-pre-wrap">${escapeHtml(movie.comment)}</p>
-              </div>
-            `
-                : ""
-            }
+            <div class="detail-comment p-5 mb-4">
+              <h3 class="detail-section-title text-sm font-semibold mb-1.5">コメント</h3>
+              <p class="detail-value text-sm leading-relaxed whitespace-pre-wrap">${movie.comment ? escapeHtml(movie.comment) : ""}</p>
+            </div>
 
             <div class="detail-mobile-actions flex gap-3 lg:hidden">
               <button onclick="openForm('${movie.id}')" class="detail-action-edit flex-1 py-3">編集</button>
@@ -2832,5 +3614,20 @@
       // 起動
       init();
     </script>
-  </body>
+  
+<script>
+  // v25: スマホでは検索欄を短い表記にし、PCでは従来表記を維持
+  (function () {
+    function updateMobileSearchPlaceholder() {
+      const input = document.getElementById("searchInput");
+      if (!input) return;
+      input.placeholder = window.matchMedia("(max-width: 1023px)").matches
+        ? "タイトル検索"
+        : "タイトルで検索...";
+    }
+    updateMobileSearchPlaceholder();
+    window.addEventListener("resize", updateMobileSearchPlaceholder);
+  })();
+</script>
+</body>
 </html>
