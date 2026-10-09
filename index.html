@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ja">
+<html lang="ja" data-auth-state="loading">
   <head>
     <meta charset="UTF-8" />
     <meta
@@ -1690,8 +1690,57 @@ body:has(#formView:not(.hidden)) { padding-bottom: 0 !important; }
 }
 #seriesSuggestions { background: var(--paper-light); border-color: var(--line); }
 </style>
+<style>
+/* 認証の表示切替。既存ビューのレイアウトには手を加えない。 */
+html:not([data-auth-state="authenticated"]) #listView,
+html:not([data-auth-state="authenticated"]) #detailView,
+html:not([data-auth-state="authenticated"]) #formView { display: none !important; }
+html[data-auth-state="authenticated"] #authView { display: none; }
+html:not([data-auth-state="authenticated"]) body { padding-bottom: 0 !important; }
+#authView [hidden] { display: none !important; }
+#authView { min-height: 100vh; min-height: 100svh; display: flex; align-items: center; justify-content: center; padding: 2rem 1rem; background: var(--paper); }
+#authView .auth-card { width: min(100%, 25rem); background: var(--paper-light); border: 1px solid var(--line); border-radius: .4rem; box-shadow: 0 5px 18px rgba(52,51,47,.10); overflow: hidden; }
+#authView .auth-heading { padding: 1.8rem 1rem; text-align: center; border-bottom: 1px solid var(--line); background: repeating-linear-gradient(90deg, #e8e2d7 0 94.5px, #fbfaf6 94.5px 189px); background-position: calc(50% - 47.25px) 0; }
+#authView h1 { font-family: Georgia, "Times New Roman", serif; font-size: 1.9rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+#authView .auth-body { padding: 1.5rem; }
+#authView h2 { margin-bottom: 1.25rem; font-size: 1rem; font-weight: 600; }
+#authView label { display: block; margin: 1rem 0 .4rem; font-size: .875rem; }
+#authView input { width: 100%; box-sizing: border-box; border: 1px solid var(--line); border-radius: .4rem; padding: .75rem; background: #fff; color: var(--ink); font-family: inherit; }
+#authView input:focus { outline: 2px solid rgba(123,69,72,.28); outline-offset: 1px; }
+#authView .auth-submit { width: 100%; margin-top: 1.5rem; padding: .8rem 1rem; border: 1px solid #d8cfbd; border-radius: .38rem; outline: 1px solid rgba(216,207,189,.45); outline-offset: -5px; background: #17283a; color: #f5efe3; font-weight: 600; font-family: inherit; cursor: pointer; }
+#authView .auth-switch { display: block; margin: 1.15rem auto 0; padding: .25rem; color: var(--burgundy); font-size: .875rem; text-decoration: underline; text-underline-offset: .2em; cursor: pointer; }
+#authView button:disabled { opacity: .6; cursor: wait; }
+#authMessage { margin-top: 1rem; color: var(--burgundy); font-size: .875rem; line-height: 1.7; white-space: pre-line; }
+#authMessage[data-kind="success"] { color: #59624f; }
+#authLoading { color: var(--muted); font-size: .875rem; }
+#authLogoutMessage { color: var(--burgundy); }
+</style>
 </head>
   <body class="min-h-screen pb-24">
+    <!-- ========== 認証画面 ========== -->
+    <section id="authView" aria-label="Movie Log ログイン画面">
+      <div class="auth-card">
+        <header class="auth-heading"><h1>Movie Log</h1></header>
+        <div class="auth-body">
+          <p id="authLoading" role="status">ログイン状態を確認しています…</p>
+          <form id="authForm" hidden>
+            <h2 id="authTitle">ログイン</h2>
+            <label for="authEmail">メールアドレス</label>
+            <input id="authEmail" type="email" autocomplete="email" required />
+            <label for="authPassword">パスワード</label>
+            <input id="authPassword" type="password" autocomplete="current-password" required />
+            <div id="authConfirmField" hidden>
+              <label for="authPasswordConfirm">パスワード確認</label>
+              <input id="authPasswordConfirm" type="password" autocomplete="new-password" />
+            </div>
+            <button id="authSubmitBtn" type="submit" class="auth-submit">ログイン</button>
+            <button id="authSwitchBtn" type="button" class="auth-switch">新規登録はこちら</button>
+          </form>
+          <p id="authMessage" role="status" aria-live="polite" hidden></p>
+          <button id="authRetryBtn" type="button" class="auth-switch" hidden>再読み込みして試す</button>
+        </div>
+      </div>
+    </section>
     <!-- ========== 一覧画面 ========== -->
     <div id="listView">
       <!-- ヘッダー -->
@@ -1886,6 +1935,8 @@ body:has(#formView:not(.hidden)) { padding-bottom: 0 !important; }
       <!-- データ管理（普段は控えめに表示） -->
       <section class="mx-auto px-4 pb-5 pt-2">
         <button id="dataManagementToggle" type="button" class="data-management-toggle text-xs py-2" aria-expanded="false">データ管理</button>
+        <button id="authLogoutBtn" type="button" class="data-management-toggle text-xs py-2 float-right">ログアウト</button>
+        <p id="authLogoutMessage" class="hidden text-xs" role="status" aria-live="polite"></p>
         <div id="dataManagementPanel" class="data-management-panel hidden mt-1 pt-3 pb-1 max-w-md">
           <p class="text-xs text-slate-500 mb-3">登録した作品データをファイルに保存・復元できます。</p>
           <div class="flex flex-wrap gap-2">
@@ -2008,7 +2059,6 @@ body:has(#formView:not(.hidden)) { padding-bottom: 0 !important; }
         <div id="posterPreview" class="hidden">
           <img
             id="previewImg"
-            src=""
             alt="ポスター"
             class="w-32 h-48 object-cover rounded-xl mx-auto shadow-md bg-gray-200"
           />
@@ -2275,10 +2325,43 @@ body:has(#formView:not(.hidden)) { padding-bottom: 0 !important; }
       let selectedTmdbResult = null;
       let currentTmdbId = null;
       let titleSearchRequestId = 0;
+      // 認証スコープ内の既存clientを利用する、新規保存専用の処理。
+      let saveNewMovieToSupabase = null;
+      let updateMovieInSupabase = null;
+      let deleteMovieFromSupabase = null;
 
       // TMDbはSupabase Edge Function経由で取得
       const TMDB_FUNCTION_URL =
         "https://saxbjwyjwshpsiiamoes.supabase.co/functions/v1/tmdb";
+
+      // ポスターの代替画像は外部通信なしで表示する。保存データは変更しない。
+      const POSTER_FALLBACK_SRC = "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="450" viewBox="0 0 300 450"><rect width="300" height="450" fill="#e8e0d2"/><text x="150" y="225" dominant-baseline="middle" text-anchor="middle" fill="#7d786f" font-family="Georgia, serif" font-size="22">NO IMAGE</text></svg>'
+      );
+
+      function getPosterImageSrc(src) {
+        const url = String(src || "").trim();
+        if (!url) return POSTER_FALLBACK_SRC;
+        try {
+          // 過去の画像URLに残っていても、表示時だけ代替画像にする。
+          if (new URL(url, document.baseURI).hostname === "via.placeholder.com") return POSTER_FALLBACK_SRC;
+        } catch (_) {
+          // 不正なURLも、読み込み失敗時に一度だけ代替画像にする。
+        }
+        return url;
+      }
+
+      function usePosterFallback(img) {
+        img.onerror = null;
+        img.src = POSTER_FALLBACK_SRC;
+      }
+
+      function setPosterPreview(src) {
+        const img = document.getElementById("previewImg");
+        // 別のURLを入力・取得したときは、その画像のエラー処理を設定し直す。
+        img.onerror = () => usePosterFallback(img);
+        img.src = getPosterImageSrc(src);
+      }
 
 
 
@@ -2619,7 +2702,7 @@ body:has(#formView:not(.hidden)) { padding-bottom: 0 !important; }
           .addEventListener("input", (e) => {
             const url = e.target.value.trim();
             if (url) {
-              document.getElementById("previewImg").src = url;
+              setPosterPreview(url);
               document
                 .getElementById("posterPreview")
                 .classList.remove("hidden");
@@ -2822,10 +2905,10 @@ body:has(#formView:not(.hidden)) { padding-bottom: 0 !important; }
 
           card.innerHTML = `
           <div class="movie-card-poster aspect-[2/3] bg-gray-200 relative">
-            <img src="${movie.thumbnail || "https://via.placeholder.com/300x450?text=No+Image"}" 
+            <img src="${getPosterImageSrc(movie.thumbnail)}" 
                  alt="${escapeHtml(movie.title)}"
                  class="w-full h-full object-cover"
-                 onerror="this.src='https://via.placeholder.com/300x450?text=No+Image'">
+                 onerror="usePosterFallback(this)">
           </div>
           <div class="movie-card-body p-2.5">
             <h3 class="font-semibold text-sm text-slate-800 line-clamp-2 leading-tight mb-1">${escapeHtml(movie.title)}</h3>
@@ -2905,10 +2988,10 @@ body:has(#formView:not(.hidden)) { padding-bottom: 0 !important; }
         <div class="detail-pc-layout">
           <div class="flex justify-center mb-5 lg:mb-0">
             <div class="detail-poster-frame">
-              <img src="${movie.thumbnail || "https://via.placeholder.com/300x450?text=No+Image"}" 
+              <img src="${getPosterImageSrc(movie.thumbnail)}" 
                    alt="${escapeHtml(movie.title)}"
                    class="detail-poster object-cover bg-gray-200"
-                   onerror="this.src='https://via.placeholder.com/300x450?text=No+Image'">
+                   onerror="usePosterFallback(this)">
             </div>
           </div>
 
@@ -3047,7 +3130,7 @@ body:has(#formView:not(.hidden)) { padding-bottom: 0 !important; }
             updateFormFavoriteButton();
 
             if (movie.thumbnail) {
-              document.getElementById("previewImg").src = movie.thumbnail;
+              setPosterPreview(movie.thumbnail);
               document
                 .getElementById("posterPreview")
                 .classList.remove("hidden");
@@ -3110,6 +3193,7 @@ body:has(#formView:not(.hidden)) { padding-bottom: 0 !important; }
           return;
         }
 
+        const isNewMovie = !editingId;
         const existingMovie = editingId ? movies.find((m) => m.id === editingId) : null;
         const movieData = {
           title,
@@ -3162,6 +3246,25 @@ body:has(#formView:not(.hidden)) { padding-bottom: 0 !important; }
         localStorage.setItem("movieLog_movies", JSON.stringify(movies));
         populateYearFilter();
         showView("list");
+        if (isNewMovie) {
+          if (saveNewMovieToSupabase) {
+            // 公開順の再計算・localStorage保存後の新規作品だけを渡す。
+            // 通信完了を待たず、従来の画面遷移とローカル保存を維持する。
+            void saveNewMovieToSupabase({ ...movieData });
+          } else {
+            console.warn("⚠️ Supabase保存をスキップ：ログインユーザーを取得できませんでした");
+          }
+        } else {
+          // 入力値だけでなく、公開順も含めてローカル保存済みの作品を渡す。
+          const savedMovie = movies.find((movie) => movie.id === editingId);
+          if (savedMovie) {
+            if (updateMovieInSupabase) {
+              void updateMovieInSupabase({ ...savedMovie });
+            } else {
+              console.warn("⚠️ Supabase更新をスキップ：ログインユーザーを取得できませんでした");
+            }
+          }
+        }
       }
 
       function toggleFavorite(id) {
@@ -3170,6 +3273,14 @@ body:has(#formView:not(.hidden)) { padding-bottom: 0 !important; }
         movies[index].favorite = movies[index].favorite !== true;
         localStorage.setItem("movieLog_movies", JSON.stringify(movies));
         openDetail(id);
+        const savedMovie = movies.find((movie) => movie.id === id);
+        if (savedMovie) {
+          if (updateMovieInSupabase) {
+            void updateMovieInSupabase({ ...savedMovie });
+          } else {
+            console.warn("⚠️ Supabase更新をスキップ：ログインユーザーを取得できませんでした");
+          }
+        }
       }
 
       function updateStatusCounts() {
@@ -3421,11 +3532,19 @@ body:has(#formView:not(.hidden)) { padding-bottom: 0 !important; }
       // ===================== 削除 =====================
       function deleteMovie(id) {
         if (confirm("この作品を削除しますか？")) {
+          const movieToDelete = movies.find((movie) => movie.id === id);
           movies = movies.filter((m) => m.id !== id);
           recalculateSeriesOrders();
           localStorage.setItem("movieLog_movies", JSON.stringify(movies));
           populateYearFilter();
           showView("list");
+          if (movieToDelete) {
+            if (deleteMovieFromSupabase) {
+              void deleteMovieFromSupabase({ ...movieToDelete });
+            } else {
+              console.warn("⚠️ Supabase削除をスキップ：ログインユーザーを取得できませんでした");
+            }
+          }
         }
       }
 
@@ -3480,7 +3599,7 @@ body:has(#formView:not(.hidden)) { padding-bottom: 0 !important; }
           button.type = "button";
           button.className = "title-suggestion w-full flex items-center gap-3 px-3 py-2 text-left border-b border-stone-200 last:border-b-0";
           const poster = item.poster_path
-            ? `<img src="https://image.tmdb.org/t/p/w92${item.poster_path}" alt="" class="w-10 h-14 object-cover shrink-0 bg-stone-200">`
+            ? `<img src="https://image.tmdb.org/t/p/w92${item.poster_path}" alt="" class="w-10 h-14 object-cover shrink-0 bg-stone-200" onerror="usePosterFallback(this)">`
             : `<div class="w-10 h-14 shrink-0 bg-stone-200 flex items-center justify-center text-[10px] text-stone-500">NO IMAGE</div>`;
           button.innerHTML = `${poster}<span class="min-w-0"><span class="block text-sm text-slate-800 truncate">${escapeHtml(title || "タイトル不明")}</span><span class="block text-xs text-slate-500 mt-0.5">${year ? escapeHtml(year) + "年" : "公開年不明"}</span></span>`;
           button.addEventListener("click", () => {
@@ -3537,7 +3656,7 @@ body:has(#formView:not(.hidden)) { padding-bottom: 0 !important; }
           if (detail.poster_path) {
             const posterUrl = `https://image.tmdb.org/t/p/w500${detail.poster_path}`;
             document.getElementById("thumbnailInput").value = posterUrl;
-            document.getElementById("previewImg").src = posterUrl;
+            setPosterPreview(posterUrl);
             document.getElementById("posterPreview").classList.remove("hidden");
           }
 
@@ -3772,6 +3891,2720 @@ body:has(#formView:not(.hidden)) { padding-bottom: 0 !important; }
     }
     updateMobileSearchPlaceholder();
     window.addEventListener("resize", updateMobileSearchPlaceholder);
+  })();
+</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
+<script>
+  // 認証専用。映画データ・表示設定のlocalStorageにはアクセスしない。
+  (function () {
+    const projectUrl = "https://saxbjwyjwshpsiiamoes.supabase.co";
+    const publishableKey = "sb_publishable_lKmV54yEg8coABVMxYztFg_bNrj5a01";
+    const siteUrl = "https://noko-tech.github.io/movie-log/";
+    const form = document.getElementById("authForm");
+    const email = document.getElementById("authEmail");
+    const password = document.getElementById("authPassword");
+    const confirmPassword = document.getElementById("authPasswordConfirm");
+    const submit = document.getElementById("authSubmitBtn");
+    const switchButton = document.getElementById("authSwitchBtn");
+    const message = document.getElementById("authMessage");
+    const logout = document.getElementById("authLogoutBtn");
+    const logoutMessage = document.getElementById("authLogoutMessage");
+    let client = null;
+    let signupMode = false;
+    let busy = false;
+    let authenticated = false;
+
+    // BEGIN new movie Supabase insert (localStorage remains primary)
+    function nullableMovieInteger(value, min = Number.MIN_SAFE_INTEGER, max = Number.MAX_SAFE_INTEGER) {
+      if (value === null || value === undefined || (typeof value === "string" && !value.trim())) return null;
+      if (typeof value !== "string" && typeof value !== "number") return null;
+      const number = Number(value);
+      return Number.isSafeInteger(number) && number >= min && number <= max ? number : null;
+    }
+
+    function buildSupabaseMoviePayload(movie, userId) {
+      const rating = Number(movie.rating);
+      return {
+        user_id: userId,
+        legacy_local_id: String(movie.id),
+        created_at: movie.createdAt ?? null,
+        tmdb_id: nullableMovieInteger(movie.tmdbId),
+        media_type: movie.mediaType ?? null,
+        title: movie.title,
+        poster_url: movie.thumbnail ?? null,
+        overview: movie.synopsis ?? null,
+        rating: Number.isInteger(rating) && rating >= 0 && rating <= 5 ? rating : 0,
+        favorite: movie.favorite === true,
+        status: movie.status,
+        genre: movie.genre ?? null,
+        year: nullableMovieInteger(movie.year, -32768, 32767),
+        runtime: nullableMovieInteger(movie.runtime, -32768, 32767),
+        country: movie.country ?? null,
+        director: movie.director ?? null,
+        writer: movie.writer ?? null,
+        cast: movie.cast ?? null,
+        watch_date: movie.watchDate ?? null,
+        comment: movie.comment ?? null,
+        series_name: movie.seriesName ?? null,
+        series_order: nullableMovieInteger(movie.seriesOrder, -32768, 32767),
+      };
+    }
+
+    saveNewMovieToSupabase = async function (movie) {
+      let stage = "ログイン確認";
+      try {
+        if (!client) {
+          console.warn("⚠️ Supabase保存をスキップ：ログインユーザーを取得できませんでした");
+          return;
+        }
+        const { data: authData, error: authError } = await client.auth.getUser();
+        if (authError || !authData?.user?.id) {
+          console.warn("⚠️ Supabase保存をスキップ：ログインユーザーを取得できませんでした");
+          return;
+        }
+        stage = "データ準備";
+        if (movie.id === undefined || movie.id === null || movie.id === "") throw { code: "INVALID_LOCAL_ID" };
+        const payload = buildSupabaseMoviePayload(movie, authData.user.id);
+        stage = "重複確認";
+        const { data: existing, error: selectError } = await client.schema("public").from("movie_logs")
+          .select("id")
+          .eq("user_id", payload.user_id)
+          .eq("legacy_local_id", payload.legacy_local_id)
+          .limit(1);
+        if (selectError) throw selectError;
+        if (!Array.isArray(existing)) throw { code: "INVALID_LOOKUP_RESPONSE" };
+        if (existing.length) {
+          console.info("ℹ️ Supabase保存済みのためINSERTをスキップ");
+          return;
+        }
+        stage = "INSERT";
+        const { error: insertError } = await client.schema("public").from("movie_logs").insert(payload);
+        if (insertError) throw insertError;
+        console.log("✅ Supabase新規保存 成功");
+      } catch (error) {
+        if (stage === "ログイン確認") {
+          console.warn("⚠️ Supabase保存をスキップ：ログインユーザーを取得できませんでした");
+          return;
+        }
+        const code = /^[A-Za-z0-9_]{1,64}$/.test(String(error?.code || "")) ? String(error.code) : "UNKNOWN_ERROR";
+        const reasons = {
+          "42501": "RLSポリシーまたは操作権限を確認してください",
+          "42P01": "保存先テーブルが見つかりません",
+          "42703": "保存先の列が見つかりません",
+          "23503": "外部キー制約を確認してください",
+          "23505": "保存済みデータと重複しています",
+          INVALID_LOCAL_ID: "新規作品のローカルIDを確認できませんでした",
+          INVALID_LOOKUP_RESPONSE: "重複確認の結果を取得できませんでした",
+        };
+        console.error("❌ Supabase新規保存 失敗", {
+          code,
+          message: reasons[code] || `${stage}に失敗しました。通信環境と保存先の設定を確認してください`,
+        });
+      }
+    };
+    // END new movie Supabase insert
+
+    // BEGIN edited movie Supabase update (localStorage remains primary)
+    function buildSupabaseMovieUpdatePayload(movie) {
+      // INSERTと同じ型変換を使い、識別子・作成日時・自動更新日時は除外する。
+      const { id, user_id, legacy_local_id, created_at, updated_at, ...payload } = buildSupabaseMoviePayload(movie, null);
+      return payload;
+    }
+
+    const editedMovieUpdateQueue = new Map();
+    updateMovieInSupabase = function (movie) {
+      let localId;
+      let movieSnapshot;
+      try {
+        localId = normalizeMovieLogSyncLocalId(movie?.id);
+        // 予約時にコピーし、待機中の再編集によって送信内容が変わらないようにする。
+        movieSnapshot = JSON.parse(JSON.stringify(movie));
+      } catch (_) {
+        console.error("❌ Supabase更新中止：編集作品の保存済みデータを確認できませんでした");
+        return Promise.resolve();
+      }
+      const initiatingUserId = authenticated === true ? autoRestoreSessionUserId : null;
+      // 映画のローカル保存成功後、queue待機や認証通信より先にdirtyを永続化する。
+      try {
+        if (authenticated !== true || typeof initiatingUserId !== "string" || !initiatingUserId.trim()) throw { code: "AUTH_USER_CHANGED" };
+        markMovieSyncDirty(localId, initiatingUserId);
+      } catch (error) {
+        const code = /^[A-Za-z0-9_]{1,64}$/.test(String(error?.code || "")) ? String(error.code) : "UNKNOWN_ERROR";
+        console.error("❌ 同期メタデータdirty設定 失敗", {
+          code,
+          message: "dirty設定を確認できないためUPDATEは開始しません。ローカルデータは維持しています",
+        });
+        return Promise.resolve();
+      }
+      // 認証取得より先に予約することで、その応答順に左右されず同じIDを直列化する。
+      const previous = editedMovieUpdateQueue.get(localId)?.promise || Promise.resolve();
+      const entry = { promise: null };
+      entry.promise = previous.catch(() => {}).then(async () => {
+        let stage = "ログイン確認";
+        try {
+          if (!client || !initiatingUserId) throw { code: "AUTH_USER_CHANGED" };
+          const { data: authData, error: authError } = await client.auth.getUser();
+          if (authError || authData?.user?.id !== initiatingUserId
+            || !authenticated || autoRestoreSessionUserId !== initiatingUserId) throw { code: "AUTH_USER_CHANGED" };
+          const userId = authData.user.id;
+          stage = "データ準備";
+          const sentPayload = Object.freeze(buildSupabaseMoviePayload(movieSnapshot, userId));
+          const payload = buildSupabaseMovieUpdatePayload(movieSnapshot);
+          stage = "対象確認";
+          // 2件まで取得すれば、更新を中止すべき重複を検出できる。
+          const { data: existing, error: selectError } = await client.schema("public").from("movie_logs")
+            .select("id")
+            .eq("user_id", userId)
+            .eq("legacy_local_id", localId)
+            .limit(2);
+          if (selectError) throw selectError;
+          if (!Array.isArray(existing)) throw { code: "INVALID_LOOKUP_RESPONSE" };
+          if (existing.length === 0) {
+            console.info("ℹ️ Supabase更新をスキップ：対応するデータがまだありません（dirtyを維持）");
+            return;
+          }
+          if (existing.length > 1) {
+            console.error("❌ Supabase更新中止：同じlocal IDの行が複数あります");
+            return;
+          }
+          const rowId = existing[0]?.id;
+          if (typeof rowId !== "string" || !/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(rowId)) throw { code: "INVALID_LOOKUP_RESPONSE" };
+          // 対象確認の待機中にログアウト・ユーザー切替があった場合も送信しない。
+          if (!authenticated || autoRestoreSessionUserId !== userId) throw { code: "AUTH_USER_CHANGED" };
+          stage = "UPDATE";
+          // 確認したUUIDの1行だけを更新し、DBで確定した更新日時を取得する。
+          const { data: updated, error: updateError } = await client.schema("public").from("movie_logs")
+            .update(payload)
+            .eq("user_id", userId)
+            .eq("legacy_local_id", localId)
+            .eq("id", rowId)
+            .select("id, user_id, legacy_local_id, updated_at");
+          if (updateError) throw updateError;
+          if (!Array.isArray(updated) || updated.length !== 1 || updated[0]?.id !== rowId
+            || updated[0].legacy_local_id !== localId || updated[0].user_id !== userId) throw { code: "UPDATE_ROW_MISMATCH" };
+          validateMovieLogSyncRemoteReference(updated[0].id, updated[0].updated_at, false);
+          console.log("✅ Supabase更新 成功");
+
+          stage = "同期メタデータ成功反映";
+          const { data: currentAuth, error: currentAuthError } = await client.auth.getUser();
+          if (currentAuthError || currentAuth?.user?.id !== userId
+            || !authenticated || autoRestoreSessionUserId !== userId) throw { code: "AUTH_USER_CHANGED" };
+          // 後続予約があれば、内容が偶然同じでも古い処理ではdirtyを解除しない。
+          if (editedMovieUpdateQueue.get(localId) !== entry) {
+            console.info("ℹ️ 後続の編集があるためdirtyを維持します");
+            return;
+          }
+          let localRaw;
+          try {
+            localRaw = localStorage.getItem("movieLog_movies");
+          } catch (_) {
+            throw { code: "LOCAL_STORAGE_UNAVAILABLE" };
+          }
+          let currentMovies;
+          try {
+            currentMovies = JSON.parse(localRaw);
+          } catch (_) {
+            throw { code: "INVALID_LOCAL_DATA" };
+          }
+          if (!Array.isArray(currentMovies)) throw { code: "INVALID_LOCAL_DATA" };
+          const matches = currentMovies.filter((current) => current && typeof current === "object" && !Array.isArray(current)
+            && ((typeof current.id === "string" && current.id.trim())
+              || (typeof current.id === "number" && Number.isSafeInteger(current.id)))
+            && String(current.id) === localId);
+          if (matches.length !== 1) {
+            console.warn("⚠️ 現在の編集作品を一意に確認できないためdirtyを維持します");
+            return;
+          }
+          const currentPayload = buildSupabaseMoviePayload(matches[0], userId);
+          const unchanged = Object.keys(sentPayload).every((field) => {
+            if (field === "created_at" && sentPayload[field] !== null && currentPayload[field] !== null) {
+              if (typeof sentPayload[field] !== "string" || typeof currentPayload[field] !== "string") return false;
+              const sentTime = Date.parse(sentPayload[field]);
+              const currentTime = Date.parse(currentPayload[field]);
+              return Number.isFinite(sentTime) && Number.isFinite(currentTime) && sentTime === currentTime;
+            }
+            return sentPayload[field] === currentPayload[field];
+          });
+          if (!unchanged) {
+            console.info("ℹ️ ローカル内容が変更されているためdirtyを維持します");
+            return;
+          }
+          const metadata = readMovieLogSyncMetadata(userId);
+          if (!Object.prototype.hasOwnProperty.call(metadata.items, localId)
+            || metadata.items[localId].dirty !== true || metadata.items[localId].pendingDelete !== false) {
+            console.warn("⚠️ 同期メタデータの状態が変わったため成功反映を中止します");
+            return;
+          }
+          // 最後のawait後に比較し、成功反映まで非同期処理を挟まない。
+          if (localStorage.getItem("movieLog_movies") !== localRaw) {
+            console.info("ℹ️ ローカル保存内容が変わったためdirtyを維持します");
+            return;
+          }
+          markMovieSyncRemoteSuccess(localId, userId, updated[0].id, updated[0].updated_at);
+        } catch (error) {
+          if (stage === "ログイン確認") {
+            console.warn("⚠️ Supabase更新をスキップ：ログインユーザーを確認できませんでした");
+            return;
+          }
+          const code = /^[A-Za-z0-9_]{1,64}$/.test(String(error?.code || "")) ? String(error.code) : "UNKNOWN_ERROR";
+          const reasons = {
+            "42501": "RLSポリシーまたは操作権限を確認してください",
+            "42P01": "更新先テーブルが見つかりません",
+            "42703": "更新先の列が見つかりません",
+            "23503": "外部キー制約を確認してください",
+            "23505": "保存済みデータと重複しています",
+            AUTH_USER_CHANGED: "ログインユーザーが変わったため処理を中止しました",
+            INVALID_LOOKUP_RESPONSE: "更新対象の確認結果を取得できませんでした",
+            UPDATE_ROW_MISMATCH: "対象の1件を更新できたことを確認できませんでした",
+            LOCAL_STORAGE_UNAVAILABLE: "現在のローカル映画データを読み取れませんでした",
+            INVALID_LOCAL_DATA: "現在のローカル映画データが正常な配列ではありません",
+            SYNC_META_INVALID_REMOTE_ID: "Supabaseから取得したUUIDを確認できませんでした",
+            SYNC_META_INVALID_REMOTE_TIME: "Supabaseから取得した更新日時を確認できませんでした",
+          };
+          console.error(stage.startsWith("同期メタデータ") ? "❌ 同期メタデータ更新 失敗" : "❌ Supabase更新 失敗", {
+            code,
+            message: reasons[code] || `${stage}に失敗しました。ローカルデータは元に戻していません`,
+          });
+        }
+      }).finally(() => {
+        // 後続の予約を、先行処理の完了で消さない。
+        if (editedMovieUpdateQueue.get(localId) === entry) editedMovieUpdateQueue.delete(localId);
+      });
+      editedMovieUpdateQueue.set(localId, entry);
+      return entry.promise;
+    };
+    // END edited movie Supabase update
+
+    // BEGIN deleted movie Supabase delete (localStorage remains primary)
+    deleteMovieFromSupabase = async function (movie) {
+      let stage = "ログイン確認";
+      try {
+        if (!client) {
+          console.warn("⚠️ Supabase削除をスキップ：ログインユーザーを取得できませんでした");
+          return;
+        }
+        const { data: authData, error: authError } = await client.auth.getUser();
+        if (authError || !authData?.user?.id) {
+          console.warn("⚠️ Supabase削除をスキップ：ログインユーザーを取得できませんでした");
+          return;
+        }
+        stage = "データ確認";
+        if (movie.id === undefined || movie.id === null || movie.id === "") throw { code: "INVALID_LOCAL_ID" };
+        const userId = authData.user.id;
+        const localId = String(movie.id);
+        stage = "対象確認";
+        const { data: existing, error: selectError } = await client.schema("public").from("movie_logs")
+          .select("id")
+          .eq("user_id", userId)
+          .eq("legacy_local_id", localId)
+          .limit(2);
+        if (selectError) throw selectError;
+        if (!Array.isArray(existing)) throw { code: "INVALID_LOOKUP_RESPONSE" };
+        if (existing.length === 0) {
+          console.info("ℹ️ Supabase削除をスキップ：対応するデータがまだありません");
+          return;
+        }
+        if (existing.length > 1) {
+          console.error("❌ Supabase削除中止：同じlocal IDの行が複数あります");
+          return;
+        }
+        const rowId = existing[0]?.id;
+        if (typeof rowId !== "string" || !rowId) throw { code: "INVALID_LOOKUP_RESPONSE" };
+        stage = "DELETE";
+        // 事前に確認したUUIDの1行だけを、ユーザーとローカルIDも条件にして削除する。
+        const { data: deleted, error: deleteError } = await client.schema("public").from("movie_logs")
+          .delete()
+          .eq("user_id", userId)
+          .eq("legacy_local_id", localId)
+          .eq("id", rowId)
+          .select("id");
+        if (deleteError) throw deleteError;
+        if (!Array.isArray(deleted) || deleted.length !== 1 || deleted[0]?.id !== rowId) {
+          throw { code: "DELETE_ROW_MISMATCH" };
+        }
+        stage = "削除確認";
+        const { data: remaining, error: verifyError } = await client.schema("public").from("movie_logs")
+          .select("id")
+          .eq("user_id", userId)
+          .eq("id", rowId)
+          .limit(1);
+        if (verifyError) throw verifyError;
+        if (!Array.isArray(remaining)) throw { code: "INVALID_LOOKUP_RESPONSE" };
+        if (remaining.length !== 0) throw { code: "DELETE_ROW_REMAINS" };
+        console.log("✅ Supabase削除 成功");
+      } catch (error) {
+        if (stage === "ログイン確認") {
+          console.warn("⚠️ Supabase削除をスキップ：ログインユーザーを取得できませんでした");
+          return;
+        }
+        const code = /^[A-Za-z0-9_]{1,64}$/.test(String(error?.code || "")) ? String(error.code) : "UNKNOWN_ERROR";
+        const reasons = {
+          "42501": "RLSポリシーまたは操作権限を確認してください",
+          "42P01": "削除先テーブルが見つかりません",
+          "42703": "削除先の列が見つかりません",
+          "23503": "外部キー制約を確認してください",
+          INVALID_LOCAL_ID: "削除作品のローカルIDを確認できませんでした",
+          INVALID_LOOKUP_RESPONSE: "削除対象の確認結果を取得できませんでした",
+          DELETE_ROW_MISMATCH: "対象の1件を削除できたことを確認できませんでした",
+          DELETE_ROW_REMAINS: "削除対象の行がまだ残っています",
+        };
+        console.error("❌ Supabase削除 失敗", {
+          code,
+          message: reasons[code] || `${stage}に失敗しました。通信環境と削除先の設定を確認してください`,
+        });
+      }
+    };
+    // END deleted movie Supabase delete
+
+    // BEGIN temporary Supabase RLS test (manual execution only)
+    let rlsTestRunning = false;
+    window.runSupabaseRlsTest = async function () {
+      const localStorageBefore = localStorage.getItem("movieLog_movies");
+      if (rlsTestRunning) {
+        console.warn("RLSテスト中止：別のRLSテストが実行中です");
+        return;
+      }
+      rlsTestRunning = true;
+      let testMarker = null;
+      let testId = null;
+      let userId = null;
+      let insertAttempted = false;
+      let deletionReturned = false;
+      let deletionConfirmed = false;
+      let stage = "ログイン確認";
+      const columns = "id, created_at, user_id, legacy_local_id, tmdb_id, media_type, title, poster_url, overview, rating, favorite, status, genre, year, runtime, country, director, writer, cast, watch_date, comment, series_name, series_order, updated_at";
+
+      // 生のエラー・認証情報は出力せず、原因を調べるためのコードだけ表示する。
+      function reportError(label, error) {
+        const code = /^[A-Za-z0-9_]{1,64}$/.test(String(error?.code || ""))
+          ? String(error.code) : "UNKNOWN_ERROR";
+        const reasons = {
+          "42501": "RLSポリシーまたは操作権限を確認してください",
+          "42P01": "テーブルが見つかりません",
+          "42703": "列が見つかりません",
+          "23503": "外部キー制約を確認してください",
+          TEST_ROW_MISMATCH: "テスト行の取得件数または内容が一致しません",
+          TEST_ROW_REMAINS: "テストデータが残っています",
+        };
+        console.error(`❌ ${label} 失敗（${code}）${reasons[code] ? "：" + reasons[code] : ""}`);
+      }
+
+      function table() {
+        return client.schema("public").from("movie_logs");
+      }
+
+      // IDが未取得の場合も、一意な今回のマーカーと所有者の両方に限定する。
+      function onlyTestRow(query) {
+        query = query.eq("legacy_local_id", testMarker).eq("user_id", userId);
+        return testId ? query.eq("id", testId) : query;
+      }
+
+      function isTestRow(row) {
+        return Boolean(row?.id) && row.user_id === userId
+          && row.legacy_local_id === testMarker && (!testId || row.id === testId);
+      }
+
+      function verifyValues(row, expected, label) {
+        const mismatches = Object.keys(expected).filter((key) => {
+          if (key === "updated_at") {
+            // timestamptzの表記差（Z / +00:00など）は同じ時刻として比較する。
+            return typeof row[key] !== "string" || !Number.isFinite(Date.parse(row[key]))
+              || Date.parse(row[key]) !== Date.parse(expected[key]);
+          }
+          // 数値・真偽値を文字列に変換せず、型も含めて一致を確認する。
+          return row[key] !== expected[key];
+        });
+        if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(row.id)) mismatches.push("id");
+        if (typeof row.created_at !== "string" || !Number.isFinite(Date.parse(row.created_at))) mismatches.push("created_at");
+        if (mismatches.length) {
+          console.error(`❌ ${label} 項目不一致`, mismatches);
+          throw { code: "TEST_FIELD_MISMATCH", reported: true };
+        }
+      }
+
+      try {
+        if (!client) {
+          console.error("RLSテスト中止：ログインユーザーを取得できません");
+          return;
+        }
+        const { data: authData, error: authError } = await client.auth.getUser();
+        if (authError || !authData?.user?.id) {
+          console.error("RLSテスト中止：ログインユーザーを取得できません");
+          return;
+        }
+        userId = authData.user.id;
+        testMarker = `FULL_RLS_TEST_${Date.now()}_${window.crypto?.randomUUID ? window.crypto.randomUUID() : Math.random().toString(36).slice(2)}`;
+
+        const testData = {
+          user_id: userId,
+          legacy_local_id: testMarker,
+          tmdb_id: 999999999,
+          media_type: "movie",
+          title: "__MOVIE_LOG_FULL_SCHEMA_TEST__",
+          poster_url: "https://example.com/test-poster.jpg",
+          overview: "Temporary full schema test",
+          rating: 5,
+          favorite: true,
+          status: "watched",
+          genre: "アクション, SF",
+          year: 2026,
+          runtime: 123,
+          country: "日本",
+          director: "テスト監督",
+          writer: "テスト脚本",
+          cast: "テスト出演者A, テスト出演者B",
+          watch_date: "2026-10",
+          comment: "Temporary Supabase full schema test data",
+          series_name: "テストシリーズ",
+          series_order: 1,
+          updated_at: new Date().toISOString(),
+        };
+        stage = "FULL INSERT";
+        insertAttempted = true;
+        const { data: inserted, error: insertError } = await table().insert(testData).select(columns).single();
+        if (insertError) throw insertError;
+        if (!isTestRow(inserted)) throw { code: "TEST_ROW_MISMATCH" };
+        testId = inserted.id;
+        console.log("✅ FULL INSERT 成功");
+
+        stage = "FULL SELECT";
+        const { data: selected, error: selectError } = await onlyTestRow(table().select(columns)).single();
+        if (selectError) throw selectError;
+        if (!isTestRow(selected)) throw { code: "TEST_ROW_MISMATCH" };
+        verifyValues(selected, testData, "FULL SELECT");
+        console.log("✅ FULL SELECT・全項目確認 成功");
+
+        stage = "FULL UPDATE";
+        const updateData = {
+          rating: 4,
+          favorite: false,
+          comment: "Temporary Supabase full schema test data - updated",
+          updated_at: new Date().toISOString(),
+        };
+        const { data: updated, error: updateError } = await onlyTestRow(
+          table().update(updateData),
+        ).select(columns).single();
+        if (updateError) throw updateError;
+        if (!isTestRow(updated)) throw { code: "TEST_ROW_MISMATCH" };
+        const { data: reselected, error: reselectError } = await onlyTestRow(table().select(columns)).single();
+        if (reselectError) throw reselectError;
+        if (!isTestRow(reselected)) throw { code: "TEST_ROW_MISMATCH" };
+        verifyValues(reselected, { ...testData, ...updateData }, "FULL UPDATE");
+        console.log("✅ FULL UPDATE 成功");
+
+        stage = "FULL DELETE";
+        const { data: deleted, error: deleteError } = await onlyTestRow(table().delete()).select(columns);
+        if (deleteError) throw deleteError;
+        if (!Array.isArray(deleted) || deleted.length !== 1 || !isTestRow(deleted[0])) throw { code: "TEST_ROW_MISMATCH" };
+        deletionReturned = true;
+        console.log("✅ FULL DELETE 成功");
+
+        stage = "FULL DELETE確認";
+        const { data: remaining, error: verifyError } = await onlyTestRow(table().select("id")).limit(1);
+        if (verifyError) throw verifyError;
+        if (!Array.isArray(remaining) || remaining.length !== 0) throw { code: "TEST_ROW_REMAINS" };
+        deletionConfirmed = true;
+        console.log("✅ FULL DELETE確認 成功");
+      } catch (error) {
+        if (stage === "ログイン確認") {
+          console.error("RLSテスト中止：ログインユーザーを取得できません");
+        } else if (!error?.reported) {
+          reportError(stage, error);
+        }
+      } finally {
+        try {
+          // INSERT応答が途切れた場合も含め、今回の行だけ後始末する。
+          if (insertAttempted && !deletionConfirmed) {
+            try {
+              const { data: cleaned, error: cleanupError } = await onlyTestRow(table().delete()).select(columns);
+              if (cleanupError) throw cleanupError;
+              if (Array.isArray(cleaned) && cleaned.length === 1 && isTestRow(cleaned[0])) deletionReturned = true;
+              const { data: remaining, error: verifyError } = await onlyTestRow(table().select("id")).limit(1);
+              if (verifyError) throw verifyError;
+              // RLSで0件に見えるだけの場合を、削除成功とは扱わない。
+              deletionConfirmed = deletionReturned && Array.isArray(remaining) && remaining.length === 0;
+              if (deletionConfirmed) console.log("✅ テストデータ後始末 成功");
+            } catch (cleanupError) {
+              reportError("後始末", cleanupError);
+            }
+            if (!deletionConfirmed) {
+              console.warn(`⚠️ テストデータがSupabaseに残っている可能性があります\nlegacy_local_id: ${testMarker}`);
+            }
+          }
+        } finally {
+          try {
+            const localStorageAfter = localStorage.getItem("movieLog_movies");
+            const unchanged = localStorageAfter === localStorageBefore;
+            console[unchanged ? "log" : "error"](
+              unchanged
+                ? "✅ localStorage変更なし" : "❌ 警告：localStorageが変更されています",
+            );
+          } catch (_error) {
+            console.error("❌ 警告：localStorageの変更確認ができませんでした");
+          }
+          rlsTestRunning = false;
+        }
+      }
+    };
+    // END temporary Supabase RLS test
+
+    // BEGIN manual read-only Supabase migration check
+    window.checkSupabaseMigrationReady = async function () {
+      let summary = null;
+      try {
+        let raw;
+        try {
+          raw = localStorage.getItem("movieLog_movies");
+        } catch (_) {
+          throw { code: "LOCAL_STORAGE_UNAVAILABLE" };
+        }
+        let localMovies;
+        try {
+          localMovies = JSON.parse(raw ?? "[]");
+        } catch (_) {
+          throw { code: "INVALID_LOCAL_JSON" };
+        }
+        if (!Array.isArray(localMovies)) throw { code: "INVALID_LOCAL_DATA" };
+        summary = {
+          "localStorage総件数": localMovies.length,
+          "IDあり": 0,
+          "IDなし": 0,
+          "ID重複（2件目以降）": 0,
+          "createdAtあり": 0,
+          "createdAtなし": 0,
+          "titleあり": 0,
+          "titleなし": 0,
+          "tmdbId変換可": 0,
+          "year変換可": 0,
+          "runtime変換可": 0,
+          "seriesOrder変換可": 0,
+          "rating変換可": 0,
+          "favorite変換可": 0,
+          "型変換エラー候補": 0,
+          "Supabase既存件数": "未確認",
+          "移行候補（IDあり・未登録）": "未確認",
+          "すでに存在": "未確認",
+          "比較対象外（IDなし・不正）": 0,
+        };
+        const issues = {};
+        const addIssue = (name) => { issues[name] = (issues[name] || 0) + 1; };
+        const hasValue = (value) => value !== undefined && value !== null
+          && !(typeof value === "string" && !value.trim());
+        const localIds = new Map();
+        const numericFields = [
+          ["tmdbId", Number.MIN_SAFE_INTEGER, Number.MAX_SAFE_INTEGER],
+          ["year", -32768, 32767],
+          ["runtime", -32768, 32767],
+          ["seriesOrder", -32768, 32767],
+        ];
+        for (const entry of localMovies) {
+          const movie = entry && typeof entry === "object" && !Array.isArray(entry) ? entry : {};
+          if (movie !== entry) addIssue("作品データの形式不正");
+          if (!hasValue(movie.id)) {
+            summary["IDなし"]++;
+            summary["比較対象外（IDなし・不正）"]++;
+            addIssue("IDなし");
+          } else {
+            summary["IDあり"]++;
+            if (typeof movie.id !== "string" && !(typeof movie.id === "number" && Number.isSafeInteger(movie.id))) {
+              summary["比較対象外（IDなし・不正）"]++;
+              addIssue("IDの形式不正");
+            } else {
+              // 新規保存と同じString変換で比較し、空白などの値は勝手に修正しない。
+              const localId = String(movie.id);
+              if (localIds.has(localId)) {
+                summary["ID重複（2件目以降）"]++;
+                addIssue("ID重複（2件目以降）");
+              }
+              localIds.set(localId, (localIds.get(localId) || 0) + 1);
+            }
+          }
+          if (hasValue(movie.createdAt)) {
+            summary["createdAtあり"]++;
+            if (typeof movie.createdAt !== "string" || !Number.isFinite(Date.parse(movie.createdAt))) addIssue("createdAtの形式不正");
+          } else {
+            summary["createdAtなし"]++;
+            addIssue("createdAtなし");
+          }
+          if (hasValue(movie.title)) {
+            summary["titleあり"]++;
+            if (typeof movie.title !== "string") addIssue("titleの形式不正");
+          } else {
+            summary["titleなし"]++;
+            addIssue("titleなし");
+          }
+          let conversionIssue = false;
+          for (const [field, min, max] of numericFields) {
+            // 空欄はnullにできる。不正な非空欄値を黙ってnullにする候補は警告する。
+            if (!hasValue(movie[field]) || nullableMovieInteger(movie[field], min, max) !== null) {
+              summary[`${field}変換可`]++;
+            } else {
+              addIssue(`${field}の型変換要確認`);
+              conversionIssue = true;
+            }
+          }
+          const rating = typeof movie.rating === "number" || typeof movie.rating === "string" ? Number(movie.rating) : NaN;
+          // 未設定の評価は既存仕様の0として扱える。
+          if (!hasValue(movie.rating) || ((typeof movie.rating === "number" || typeof movie.rating === "string")
+            && Number.isInteger(rating) && rating >= 0 && rating <= 5)) {
+            summary["rating変換可"]++;
+          } else {
+            addIssue("ratingの型変換要確認");
+            conversionIssue = true;
+          }
+          // 古いデータの未設定値はfalseにできる。文字列などは要確認とする。
+          if (movie.favorite === undefined || movie.favorite === null || typeof movie.favorite === "boolean") {
+            summary["favorite変換可"]++;
+          } else {
+            addIssue("favoriteの型変換要確認");
+            conversionIssue = true;
+          }
+          if (conversionIssue) summary["型変換エラー候補"]++;
+        }
+
+        if (!client) throw { code: "AUTH_UNAVAILABLE" };
+        const { data: authData, error: authError } = await client.auth.getUser();
+        if (authError || !authData?.user?.id) throw { code: "AUTH_UNAVAILABLE" };
+        const remoteIds = new Map();
+        let offset = 0;
+        let total = null;
+        // 取得上限で件数を過小評価しないよう、順序を固定して全ページを読む。
+        do {
+          const { data, count, error } = await client.schema("public").from("movie_logs")
+            .select("legacy_local_id", { count: "exact" })
+            .eq("user_id", authData.user.id)
+            .order("id", { ascending: true })
+            .range(offset, offset + 499);
+          if (error) throw error;
+          if (!Array.isArray(data) || !Number.isSafeInteger(count) || count < 0) throw { code: "INVALID_LOOKUP_RESPONSE" };
+          if (total === null) total = count;
+          if (count !== total || offset + data.length > total) throw { code: "REMOTE_DATA_CHANGED" };
+          if (data.length === 0 && offset < total) throw { code: "INCOMPLETE_LOOKUP" };
+          for (const row of data) {
+            const localId = row?.legacy_local_id;
+            if (typeof localId !== "string" || !hasValue(localId)) {
+              addIssue("Supabaseのlegacy_local_idなし・不正");
+            } else {
+              if (remoteIds.has(localId)) addIssue("Supabaseのlegacy_local_id重複（2件目以降）");
+              remoteIds.set(localId, (remoteIds.get(localId) || 0) + 1);
+            }
+          }
+          offset += data.length;
+        } while (offset < total);
+        // 読み取り中にローカル保存が行われた場合、古い集計をOKとしない。
+        if (localStorage.getItem("movieLog_movies") !== raw) throw { code: "LOCAL_DATA_CHANGED" };
+        summary["Supabase既存件数"] = total;
+        summary["移行候補（IDあり・未登録）"] = 0;
+        summary["すでに存在"] = 0;
+        for (const [localId, count] of localIds) {
+          summary[remoteIds.has(localId) ? "すでに存在" : "移行候補（IDあり・未登録）"] += count;
+        }
+        const ok = Object.keys(issues).length === 0;
+        console.log("===== Supabase移行 事前チェック =====");
+        console.table(summary);
+        if (ok) {
+          console.log("✅ 移行前チェック OK");
+        } else {
+          console.warn("⚠️ 移行前チェック 要確認");
+          console.table(issues);
+        }
+        // 返すのも集計だけ。映画内容やユーザー情報は返さない。
+        return { ok, summary, issues };
+      } catch (error) {
+        const code = /^[A-Za-z0-9_]{1,64}$/.test(String(error?.code || "")) ? String(error.code) : "UNKNOWN_ERROR";
+        const reasons = {
+          LOCAL_STORAGE_UNAVAILABLE: "localStorageを読み取れませんでした",
+          INVALID_LOCAL_JSON: "保存JSONを読み取れませんでした。データは変更していません",
+          INVALID_LOCAL_DATA: "保存JSONが作品配列ではありません。データは変更していません",
+          AUTH_UNAVAILABLE: "ログインユーザーを取得できず、Supabase側の確認は未完了です",
+          INVALID_LOOKUP_RESPONSE: "Supabaseの件数または一覧を取得できませんでした",
+          REMOTE_DATA_CHANGED: "読み取り中にSupabaseの件数が変わりました。再確認してください",
+          INCOMPLETE_LOOKUP: "Supabaseの全件を取得できませんでした",
+          LOCAL_DATA_CHANGED: "読み取り中にローカルデータが変わりました。再確認してください",
+          "42501": "RLSポリシーまたは読み取り権限を確認してください",
+          "42P01": "確認先テーブルが見つかりません",
+          "42703": "確認先の列が見つかりません",
+        };
+        console.log("===== Supabase移行 事前チェック =====");
+        if (summary) console.table(summary);
+        console.warn("⚠️ 移行前チェック 要確認");
+        const safeError = { code, message: reasons[code] || "事前チェックを完了できませんでした。通信環境と読み取り設定を確認してください" };
+        console.error("事前チェック 未完了", safeError);
+        return { ok: false, summary, error: safeError };
+      }
+    };
+    // END manual read-only Supabase migration check
+
+    // BEGIN manual single movie Supabase copy (localStorage remains unchanged)
+    let oneMovieMigrationRunning = false;
+    window.migrateOneMovieToSupabase = async function (localId) {
+      if (oneMovieMigrationRunning) {
+        console.warn("⚠️ 移行を中止：別の1件移行が実行中です");
+        return { ok: false };
+      }
+      oneMovieMigrationRunning = true;
+      let stage = "ローカル確認";
+      let insertAttempted = false;
+      let insertVerified = false;
+      let selectedLocalId = null;
+      try {
+        if ((typeof localId !== "string" && !(typeof localId === "number" && Number.isSafeInteger(localId)))
+          || !String(localId).trim()) throw { code: "INVALID_LOCAL_ID" };
+        let raw;
+        try {
+          raw = localStorage.getItem("movieLog_movies");
+        } catch (_) {
+          throw { code: "LOCAL_STORAGE_UNAVAILABLE" };
+        }
+        let localMovies;
+        try {
+          localMovies = JSON.parse(raw ?? "[]");
+        } catch (_) {
+          throw { code: "INVALID_LOCAL_JSON" };
+        }
+        if (!Array.isArray(localMovies)) throw { code: "INVALID_LOCAL_DATA" };
+        const matches = localMovies.filter((movie) => movie && typeof movie === "object"
+          && !Array.isArray(movie) && String(movie.id) === String(localId));
+        if (matches.length === 0) {
+          console.error("❌ 移行中止：指定したlocal IDの作品が見つかりません");
+          return { ok: false };
+        }
+        if (matches.length > 1) {
+          console.error("❌ 移行中止：同じlocal IDの作品が複数あります");
+          return { ok: false };
+        }
+        const movie = matches[0];
+        if (typeof movie.id !== "string" && !(typeof movie.id === "number" && Number.isSafeInteger(movie.id))) throw { code: "INVALID_LOCAL_ID" };
+        if (typeof movie.createdAt !== "string" || !movie.createdAt.trim() || !Number.isFinite(Date.parse(movie.createdAt))) {
+          throw { code: "INVALID_CREATED_AT" };
+        }
+        if (typeof movie.title !== "string" || !movie.title.trim()) throw { code: "INVALID_TITLE" };
+        const hasValue = (value) => value !== undefined && value !== null
+          && !(typeof value === "string" && !value.trim());
+        for (const [field, min, max] of [
+          ["tmdbId", Number.MIN_SAFE_INTEGER, Number.MAX_SAFE_INTEGER],
+          ["year", -32768, 32767],
+          ["runtime", -32768, 32767],
+          ["seriesOrder", -32768, 32767],
+        ]) {
+          if (hasValue(movie[field]) && nullableMovieInteger(movie[field], min, max) === null) throw { code: "INVALID_MOVIE_TYPES" };
+        }
+        if (hasValue(movie.rating) && ((typeof movie.rating !== "number" && typeof movie.rating !== "string")
+          || !Number.isInteger(Number(movie.rating)) || Number(movie.rating) < 0 || Number(movie.rating) > 5)) throw { code: "INVALID_MOVIE_TYPES" };
+        if (movie.favorite !== undefined && movie.favorite !== null && typeof movie.favorite !== "boolean") throw { code: "INVALID_MOVIE_TYPES" };
+
+        stage = "ログイン確認";
+        if (!client) {
+          console.warn("⚠️ 移行を中止：ログインユーザーを取得できませんでした");
+          return { ok: false };
+        }
+        const { data: authData, error: authError } = await client.auth.getUser();
+        if (authError || !authData?.user?.id) {
+          console.warn("⚠️ 移行を中止：ログインユーザーを取得できませんでした");
+          return { ok: false };
+        }
+        stage = "データ準備";
+        const userId = authData.user.id;
+        const payload = buildSupabaseMoviePayload(movie, userId);
+        selectedLocalId = payload.legacy_local_id;
+        stage = "重複確認";
+        const { data: existing, error: selectError } = await client.schema("public").from("movie_logs")
+          .select("id")
+          .eq("user_id", userId)
+          .eq("legacy_local_id", selectedLocalId)
+          .limit(2);
+        if (selectError) throw selectError;
+        if (!Array.isArray(existing)) throw { code: "INVALID_LOOKUP_RESPONSE" };
+        if (existing.length === 1) {
+          console.info("ℹ️ 移行スキップ：この作品はすでにSupabaseに存在します");
+          return { ok: true, skipped: true };
+        }
+        if (existing.length > 1) {
+          console.error("❌ 移行中止：同じlocal IDの行がSupabaseに複数あります");
+          return { ok: false };
+        }
+        if (localStorage.getItem("movieLog_movies") !== raw) throw { code: "LOCAL_DATA_CHANGED" };
+        stage = "INSERT";
+        insertAttempted = true;
+        // 配列ではなく、指定作品のpayloadオブジェクト1件だけを送る。
+        const { data: inserted, error: insertError } = await client.schema("public").from("movie_logs")
+          .insert(payload)
+          .select("id")
+          .single();
+        if (insertError) throw insertError;
+        const rowId = inserted?.id;
+        if (typeof rowId !== "string" || !rowId) throw { code: "INVALID_INSERT_RESPONSE" };
+        stage = "INSERT確認";
+        const { data: verified, error: verifyError } = await client.schema("public").from("movie_logs")
+          .select("id, legacy_local_id, title, created_at")
+          .eq("user_id", userId)
+          .eq("legacy_local_id", selectedLocalId)
+          .eq("id", rowId)
+          .limit(2);
+        if (verifyError) throw verifyError;
+        if (!Array.isArray(verified) || verified.length !== 1 || verified[0]?.id !== rowId
+          || verified[0].legacy_local_id !== String(movie.id) || verified[0].title !== movie.title
+          || typeof verified[0].created_at !== "string"
+          || Date.parse(verified[0].created_at) !== Date.parse(movie.createdAt)) throw { code: "INSERT_ROW_MISMATCH" };
+        insertVerified = true;
+        console.log("✅ 1件移行 成功");
+        return { ok: true };
+      } catch (error) {
+        if (stage === "ログイン確認") {
+          console.warn("⚠️ 移行を中止：ログインユーザーを取得できませんでした");
+          return { ok: false };
+        }
+        const code = /^[A-Za-z0-9_]{1,64}$/.test(String(error?.code || "")) ? String(error.code) : "UNKNOWN_ERROR";
+        const reasons = {
+          INVALID_LOCAL_ID: "有効なローカルIDを指定してください",
+          LOCAL_STORAGE_UNAVAILABLE: "localStorageを読み取れませんでした",
+          INVALID_LOCAL_JSON: "保存JSONを読み取れませんでした",
+          INVALID_LOCAL_DATA: "保存JSONが作品配列ではありません",
+          INVALID_CREATED_AT: "元の作成日時がないか、不正なため移行できません",
+          INVALID_TITLE: "元のタイトルがないか、不正なため移行できません",
+          INVALID_MOVIE_TYPES: "元データの数値・評価・お気に入りの型を確認してください",
+          LOCAL_DATA_CHANGED: "読み取り中にローカルデータが変わりました。再確認してください",
+          INVALID_LOOKUP_RESPONSE: "重複確認の結果を取得できませんでした",
+          INVALID_INSERT_RESPONSE: "作成されたUUIDを取得できませんでした",
+          INSERT_ROW_MISMATCH: "保存後の件数・ローカルID・タイトル・作成日時を確認できませんでした",
+          "42501": "RLSポリシーまたは操作権限を確認してください",
+          "42P01": "保存先テーブルが見つかりません",
+          "42703": "保存先の列が見つかりません",
+          "23503": "外部キー制約を確認してください",
+          "23505": "保存済みデータと重複しています",
+        };
+        console.error("❌ 1件移行 失敗", {
+          code,
+          message: reasons[code] || `${stage}に失敗しました。通信環境と保存先の設定を確認してください`,
+        });
+        // 応答が途切れてもINSERT済みの可能性がある。DELETEによるロールバックはしない。
+        if (insertAttempted && !insertVerified) {
+          console.warn("⚠️ Supabaseにテスト行が残っている可能性があります", { legacy_local_id: selectedLocalId });
+        }
+        return { ok: false };
+      } finally {
+        oneMovieMigrationRunning = false;
+      }
+    };
+    // END manual single movie Supabase copy
+
+    // BEGIN manual remaining movies Supabase copy (sequential, localStorage unchanged)
+    let remainingMovieMigrationRunning = false;
+    window.migrateRemainingMoviesToSupabase = async function () {
+      if (remainingMovieMigrationRunning) {
+        console.warn("⚠️ 一括移行はすでに実行中です");
+        return { ok: false };
+      }
+      remainingMovieMigrationRunning = true;
+      let phase = "開始前";
+      let localMovies = null;
+      let targets = null;
+      let migratedCount = 0;
+      let skippedCount = 0;
+      let processedCount = 0;
+      let failedCount = 0;
+      let activeLocalId = null;
+      const stoppedSummary = () => ({
+        "成功済み件数": migratedCount,
+        "スキップ件数": skippedCount,
+        // 失敗した作品も、確認済みでない残り件数に含める。
+        "残り件数": targets ? targets.length - processedCount : "未確認",
+        "失敗したlegacy_local_id": activeLocalId,
+      });
+      try {
+        let raw;
+        try {
+          raw = localStorage.getItem("movieLog_movies");
+        } catch (_) {
+          throw { code: "LOCAL_STORAGE_UNAVAILABLE" };
+        }
+        try {
+          localMovies = JSON.parse(raw ?? "[]");
+        } catch (_) {
+          throw { code: "INVALID_LOCAL_JSON" };
+        }
+        if (!Array.isArray(localMovies)) throw { code: "INVALID_LOCAL_DATA" };
+        const assertLocalUnchanged = () => {
+          if (localStorage.getItem("movieLog_movies") !== raw) throw { code: "LOCAL_DATA_CHANGED" };
+        };
+        const getCurrentUserId = async () => {
+          if (!client) throw { code: "AUTH_UNAVAILABLE" };
+          const { data, error } = await client.auth.getUser();
+          if (error || !data?.user?.id) throw { code: "AUTH_UNAVAILABLE" };
+          return data.user.id;
+        };
+        const userId = await getCurrentUserId();
+        const assertSameUser = async () => {
+          if (await getCurrentUserId() !== userId) throw { code: "AUTH_USER_CHANGED" };
+        };
+        if (typeof window.checkSupabaseMigrationReady !== "function"
+          || typeof window.migrateOneMovieToSupabase !== "function") throw { code: "MIGRATION_HELPER_UNAVAILABLE" };
+        // 既存の全作品チェックを再利用し、不正な作品が1件でもあればINSERT前に終了する。
+        const ready = await window.checkSupabaseMigrationReady();
+        if (ready?.ok !== true) {
+          if (ready?.issues?.["Supabaseのlegacy_local_id重複（2件目以降）"]) throw { code: "REMOTE_DUPLICATE_IDS" };
+          if (ready?.error?.code === "AUTH_UNAVAILABLE") throw { code: "AUTH_UNAVAILABLE" };
+          if (ready?.error?.code === "LOCAL_DATA_CHANGED") throw { code: "LOCAL_DATA_CHANGED" };
+          console.error("❌ 一括移行中止：移行前チェックが要確認です");
+          return { ok: false };
+        }
+        assertLocalUnchanged();
+        if (ready.summary?.["localStorage総件数"] !== localMovies.length) throw { code: "LOCAL_DATA_CHANGED" };
+
+        // 列はlegacy_local_idだけ。件数と全ページを、同じユーザー条件で読む。
+        const readRemoteIds = async () => {
+          const ids = new Map();
+          let total = null;
+          let offset = 0;
+          do {
+            const { data, count, error } = await client.schema("public").from("movie_logs")
+              .select("legacy_local_id", { count: "exact" })
+              .eq("user_id", userId)
+              .order("id", { ascending: true })
+              .range(offset, offset + 499);
+            if (error) throw error;
+            if (!Array.isArray(data) || !Number.isSafeInteger(count) || count < 0) throw { code: "INVALID_LOOKUP_RESPONSE" };
+            if (total === null) total = count;
+            if (count !== total || offset + data.length > total) throw { code: "REMOTE_DATA_CHANGED" };
+            if (data.length === 0 && offset < total) throw { code: "INCOMPLETE_LOOKUP" };
+            for (const row of data) {
+              const id = row?.legacy_local_id;
+              if (typeof id !== "string" || !id.trim()) throw { code: "INVALID_REMOTE_ID" };
+              ids.set(id, (ids.get(id) || 0) + 1);
+            }
+            offset += data.length;
+          } while (offset < total);
+          return { ids, total };
+        };
+        await assertSameUser();
+        const existing = await readRemoteIds();
+        if ([...existing.ids.values()].some((count) => count > 1)) throw { code: "REMOTE_DUPLICATE_IDS" };
+        assertLocalUnchanged();
+        targets = localMovies.filter((movie) => !existing.ids.has(String(movie.id)));
+        skippedCount = localMovies.length - targets.length;
+        phase = "移行中";
+        for (const movie of targets) {
+          activeLocalId = String(movie.id);
+          assertLocalUnchanged();
+          await assertSameUser();
+          assertLocalUnchanged();
+          // 既存の重複確認・型変換・作成日時維持・保存後確認を、1件ずつ完了まで待つ。
+          const result = await window.migrateOneMovieToSupabase(movie.id);
+          if (result?.ok !== true) {
+            failedCount = 1;
+            if (localStorage.getItem("movieLog_movies") !== raw) {
+              console.error("❌ 一括移行を停止：移行中にlocalStorageが変更されました");
+            }
+            console.error("❌ 一括移行を停止しました");
+            const summary = stoppedSummary();
+            console.table(summary);
+            return { ok: false, summary };
+          }
+          if (result.skipped === true) skippedCount++;
+          else migratedCount++;
+          processedCount++;
+          assertLocalUnchanged();
+          if (processedCount % 10 === 0 || processedCount === targets.length) {
+            console.info(`移行進捗：${processedCount} / ${targets.length}`);
+          }
+        }
+
+        phase = "最終確認";
+        activeLocalId = null;
+        assertLocalUnchanged();
+        await assertSameUser();
+        const final = await readRemoteIds();
+        await assertSameUser();
+        assertLocalUnchanged();
+        const localIds = localMovies.map((movie) => String(movie.id));
+        const missingCount = localIds.filter((id) => !final.ids.has(id)).length;
+        const duplicateCount = localIds.filter((id) => (final.ids.get(id) || 0) > 1).length;
+        const summary = {
+          "localStorage件数": localMovies.length,
+          "Supabase件数": final.total,
+          "今回新規移行": migratedCount,
+          "既存スキップ": skippedCount,
+          "失敗": failedCount,
+        };
+        if (final.total !== localMovies.length || missingCount !== 0 || duplicateCount !== 0) {
+          console.warn("⚠️ 移行後確認 要確認");
+          console.table({ ...summary, "SupabaseにないID件数": missingCount, "重複したID件数": duplicateCount });
+          return { ok: false, summary };
+        }
+        console.log("===== Supabase既存データ移行 完了 =====");
+        console.table(summary);
+        console.log("✅ 既存データ移行 完了");
+        return { ok: true, summary };
+      } catch (error) {
+        const code = /^[A-Za-z0-9_]{1,64}$/.test(String(error?.code || "")) ? String(error.code) : "UNKNOWN_ERROR";
+        if (code === "LOCAL_DATA_CHANGED") {
+          console.error("❌ 一括移行を停止：移行中にlocalStorageが変更されました");
+        } else if (code === "AUTH_UNAVAILABLE") {
+          console.warn("⚠️ 一括移行を中止：ログインユーザーを取得できませんでした");
+        } else if (code === "AUTH_USER_CHANGED") {
+          console.error("❌ 一括移行を停止：ログインユーザーが変わりました");
+        }
+        if (phase === "移行中") {
+          console.error("❌ 一括移行を停止しました");
+          const summary = stoppedSummary();
+          console.table(summary);
+          return { ok: false, summary };
+        }
+        if (phase === "最終確認") {
+          console.warn("⚠️ 移行後確認 要確認");
+          console.table({
+            "localStorage件数": localMovies.length,
+            "Supabase件数": "未確認",
+            "今回新規移行": migratedCount,
+            "既存スキップ": skippedCount,
+            "失敗": failedCount,
+          });
+        } else if (code === "REMOTE_DUPLICATE_IDS") {
+          console.error("❌ 一括移行中止：Supabase側に同じlocal IDの重複があります");
+        } else {
+          console.error("❌ 一括移行中止：開始前の確認を完了できませんでした");
+        }
+        const reasons = {
+          LOCAL_STORAGE_UNAVAILABLE: "localStorageを読み取れませんでした",
+          INVALID_LOCAL_JSON: "保存JSONを読み取れませんでした",
+          INVALID_LOCAL_DATA: "保存JSONが作品配列ではありません",
+          LOCAL_DATA_CHANGED: "開始時の保存JSONと一致しません",
+          AUTH_UNAVAILABLE: "ログイン状態を確認してください",
+          AUTH_USER_CHANGED: "開始時と同じユーザーで再確認してください",
+          MIGRATION_HELPER_UNAVAILABLE: "既存の移行用関数を利用できませんでした",
+          REMOTE_DUPLICATE_IDS: "同じユーザーとローカルIDの行が複数あります",
+          INVALID_REMOTE_ID: "Supabase側のローカルIDを確認してください",
+          INVALID_LOOKUP_RESPONSE: "Supabaseの件数または一覧を取得できませんでした",
+          REMOTE_DATA_CHANGED: "読み取り中にSupabaseの件数が変わりました",
+          INCOMPLETE_LOOKUP: "Supabaseの全件を取得できませんでした",
+          "42501": "RLSポリシーまたは読み取り権限を確認してください",
+          "42P01": "確認先テーブルが見つかりません",
+          "42703": "確認先の列が見つかりません",
+        };
+        const safeError = { code, message: reasons[code] || "通信環境と読み取り設定を確認してください" };
+        console.error("移行の確認 未完了", safeError);
+        return { ok: false, error: safeError };
+      } finally {
+        remainingMovieMigrationRunning = false;
+      }
+    };
+    // END manual remaining movies Supabase copy
+
+    // BEGIN manual read-only Supabase migration verification
+    let migrationVerificationRunning = false;
+    window.verifySupabaseMigration = async function () {
+      if (migrationVerificationRunning) {
+        console.warn("⚠️ 移行後照合はすでに実行中です");
+        return { ok: false };
+      }
+      migrationVerificationRunning = true;
+      let summary = null;
+      try {
+        let raw;
+        try {
+          raw = localStorage.getItem("movieLog_movies");
+        } catch (_) {
+          throw { code: "LOCAL_STORAGE_UNAVAILABLE" };
+        }
+        let localMovies;
+        try {
+          localMovies = JSON.parse(raw ?? "[]");
+        } catch (_) {
+          throw { code: "INVALID_LOCAL_JSON" };
+        }
+        if (!Array.isArray(localMovies)) throw { code: "INVALID_LOCAL_DATA" };
+        const assertLocalUnchanged = () => {
+          if (localStorage.getItem("movieLog_movies") !== raw) throw { code: "LOCAL_DATA_CHANGED" };
+        };
+        const getCurrentUserId = async () => {
+          if (!client) throw { code: "AUTH_UNAVAILABLE" };
+          const { data, error } = await client.auth.getUser();
+          if (error || !data?.user?.id) throw { code: "AUTH_UNAVAILABLE" };
+          return data.user.id;
+        };
+        const userId = await getCurrentUserId();
+        assertLocalUnchanged();
+        const columns = "id, user_id, legacy_local_id, created_at, tmdb_id, media_type, title, poster_url, overview, rating, favorite, status, genre, year, runtime, country, director, writer, cast, watch_date, comment, series_name, series_order, updated_at";
+        const remoteRows = [];
+        const seenRowIds = new Set();
+        let total = null;
+        let offset = 0;
+        do {
+          const { data, count, error } = await client.schema("public").from("movie_logs")
+            .select(columns, { count: "exact" })
+            .eq("user_id", userId)
+            .order("id", { ascending: true })
+            .range(offset, offset + 499);
+          if (error) throw error;
+          if (!Array.isArray(data) || !Number.isSafeInteger(count) || count < 0) throw { code: "INVALID_LOOKUP_RESPONSE" };
+          if (total === null) total = count;
+          if (count !== total || offset + data.length > total) throw { code: "REMOTE_DATA_CHANGED" };
+          if (data.length === 0 && offset < total) throw { code: "INCOMPLETE_LOOKUP" };
+          for (const row of data) {
+            if (!row || typeof row !== "object" || Array.isArray(row)) throw { code: "INVALID_LOOKUP_RESPONSE" };
+            // ページ間で同じ行を二度取得した場合も、全件確認済みにはしない。
+            if (typeof row.id === "string" && row.id) {
+              if (seenRowIds.has(row.id)) throw { code: "REMOTE_DATA_CHANGED" };
+              seenRowIds.add(row.id);
+            }
+            remoteRows.push(row);
+          }
+          offset += data.length;
+          assertLocalUnchanged();
+        } while (offset < total);
+
+        const localById = new Map();
+        const remoteById = new Map();
+        const issues = {};
+        const addIssue = (name) => { issues[name] = (issues[name] || 0) + 1; };
+        for (const movie of localMovies) {
+          if (!movie || typeof movie !== "object" || Array.isArray(movie)) {
+            addIssue("localStorage作品の形式不正");
+            continue;
+          }
+          if (!(typeof movie.id === "string" && movie.id.trim())
+            && !(typeof movie.id === "number" && Number.isSafeInteger(movie.id))) {
+            addIssue("local IDなし・不正");
+            continue;
+          }
+          const localId = String(movie.id);
+          if (!localById.has(localId)) localById.set(localId, []);
+          localById.get(localId).push(movie);
+        }
+        for (const row of remoteRows) {
+          if (row.user_id !== userId) throw { code: "REMOTE_USER_MISMATCH" };
+          const localId = row.legacy_local_id;
+          if (typeof localId !== "string" || !localId.trim()) {
+            addIssue("Supabase legacy IDなし・不正");
+            continue;
+          }
+          if (!remoteById.has(localId)) remoteById.set(localId, []);
+          remoteById.get(localId).push(row);
+        }
+        summary = {
+          "localStorage件数": localMovies.length,
+          "Supabase件数": total,
+          "ID対応済み": 0,
+          "localStorageのみ": 0,
+          "Supabaseのみ": 0,
+          // 重複件数は、同じIDの2件目以降の件数。
+          "local ID重複": 0,
+          "Supabase legacy ID重複": 0,
+          "項目不一致作品": 0,
+          "項目不一致総数": 0,
+        };
+        const mismatches = [];
+        const idIssues = [];
+        const invalidNumber = Symbol("invalid number");
+        const numericLimits = {
+          tmdb_id: [Number.MIN_SAFE_INTEGER, Number.MAX_SAFE_INTEGER],
+          year: [-32768, 32767],
+          runtime: [-32768, 32767],
+          series_order: [-32768, 32767],
+        };
+        const normalizeRemoteNumber = (value, min, max) => {
+          if (value === null || (typeof value === "string" && !value.trim())) return null;
+          return nullableMovieInteger(value, min, max) ?? invalidNumber;
+        };
+        const sameField = (field, expected, actual) => {
+          if (field === "created_at") {
+            if (expected === null && actual === null) return true;
+            if (typeof expected !== "string" || typeof actual !== "string") return false;
+            const expectedTime = Date.parse(expected);
+            const actualTime = Date.parse(actual);
+            return Number.isFinite(expectedTime) && Number.isFinite(actualTime) && expectedTime === actualTime;
+          }
+          if (numericLimits[field]) {
+            return expected === normalizeRemoteNumber(actual, ...numericLimits[field]);
+          }
+          if (field === "rating") {
+            const number = actual === null ? 0
+              : typeof actual === "number" || typeof actual === "string" ? Number(actual) : NaN;
+            return Number.isInteger(number) && number >= 0 && number <= 5 && expected === number;
+          }
+          return expected === actual;
+        };
+        for (const [localId, entries] of localById) {
+          summary["local ID重複"] += entries.length - 1;
+          const rows = remoteById.get(localId);
+          if (!rows) summary["localStorageのみ"] += entries.length;
+          if (!rows || entries.length !== 1 || rows.length !== 1) {
+            idIssues.push({ legacy_local_id: localId, fields: ["legacy_local_id"] });
+            continue;
+          }
+          summary["ID対応済み"]++;
+          // 既存の保存用変換をそのまま使う。payloadは比較するだけで送信しない。
+          const payload = buildSupabaseMoviePayload(entries[0], userId);
+          const row = rows[0];
+          const fields = Object.keys(payload).filter((field) => !sameField(field, payload[field], row[field]));
+          // UUIDとupdated_atはローカル値と比較せず、有効な形式かだけ確認する。
+          if (typeof row.id !== "string" || !/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(row.id)) fields.push("id");
+          if (typeof row.updated_at !== "string" || !Number.isFinite(Date.parse(row.updated_at))) fields.push("updated_at");
+          if (fields.length) {
+            summary["項目不一致作品"]++;
+            summary["項目不一致総数"] += fields.length;
+            mismatches.push({ legacy_local_id: localId, fields });
+          }
+        }
+        for (const [localId, rows] of remoteById) {
+          summary["Supabase legacy ID重複"] += rows.length - 1;
+          if (!localById.has(localId)) {
+            summary["Supabaseのみ"] += rows.length;
+            idIssues.push({ legacy_local_id: localId, fields: ["legacy_local_id"] });
+          }
+        }
+
+        // 最後にも件数とユーザーを確認し、途中で変わった結果をOKにしない。
+        const { count: finalCount, error: finalError } = await client.schema("public").from("movie_logs")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", userId);
+        if (finalError) throw finalError;
+        if (!Number.isSafeInteger(finalCount) || finalCount < 0) throw { code: "INVALID_LOOKUP_RESPONSE" };
+        if (finalCount !== total) throw { code: "REMOTE_DATA_CHANGED" };
+        if (await getCurrentUserId() !== userId) throw { code: "AUTH_USER_CHANGED" };
+        assertLocalUnchanged();
+        const ok = localMovies.length === total && Object.keys(issues).length === 0
+          && summary["ID対応済み"] === localMovies.length && idIssues.length === 0
+          && summary["local ID重複"] === 0 && summary["Supabase legacy ID重複"] === 0
+          && mismatches.length === 0;
+        console.log("===== Supabase移行後 全件照合 =====");
+        console.table(summary);
+        if (ok) {
+          console.log(`✅ 全${localMovies.length}件の移行内容が一致しています`);
+        } else {
+          console.warn("⚠️ 移行後照合 要確認");
+          if (Object.keys(issues).length) console.table(issues);
+          for (const detail of idIssues) console.warn(detail);
+          for (const detail of mismatches) console.warn(detail);
+        }
+        // 戻り値にも映画内容・ユーザーID・認証情報を含めない。
+        return { ok, summary, issues, idIssues, mismatches };
+      } catch (error) {
+        const code = /^[A-Za-z0-9_]{1,64}$/.test(String(error?.code || "")) ? String(error.code) : "UNKNOWN_ERROR";
+        const reasons = {
+          LOCAL_STORAGE_UNAVAILABLE: "localStorageを読み取れませんでした",
+          INVALID_LOCAL_JSON: "保存JSONを読み取れませんでした",
+          INVALID_LOCAL_DATA: "保存JSONが作品配列ではありません",
+          LOCAL_DATA_CHANGED: "照合中にlocalStorageが変更されました",
+          AUTH_UNAVAILABLE: "ログインユーザーを取得できませんでした",
+          AUTH_USER_CHANGED: "照合中にログインユーザーが変わりました",
+          REMOTE_USER_MISMATCH: "取得行のユーザーが一致しません",
+          INVALID_LOOKUP_RESPONSE: "Supabaseの件数または一覧を取得できませんでした",
+          REMOTE_DATA_CHANGED: "読み取り中にSupabaseの件数または取得行が変わりました",
+          INCOMPLETE_LOOKUP: "Supabaseの全件を取得できませんでした",
+          "42501": "RLSポリシーまたは読み取り権限を確認してください",
+          "42P01": "確認先テーブルが見つかりません",
+          "42703": "確認先の列が見つかりません",
+        };
+        if (code === "LOCAL_DATA_CHANGED") {
+          console.error("❌ 照合中止：localStorageが変更されました");
+        } else {
+          console.warn("⚠️ 移行後照合 要確認");
+        }
+        const safeError = { code, message: reasons[code] || "照合を完了できませんでした。通信環境と読み取り設定を確認してください" };
+        console.error("移行後照合 未完了", safeError);
+        return { ok: false, summary, error: safeError };
+      } finally {
+        migrationVerificationRunning = false;
+      }
+    };
+    // END manual read-only Supabase migration verification
+
+    // BEGIN manual read-only Supabase restore preview
+    let supabaseRestorePreviewRunning = false;
+    window.previewSupabaseRestore = async function () {
+      if (supabaseRestorePreviewRunning) {
+        console.warn("⚠️ Supabase復元プレビューはすでに実行中です");
+        return { ok: false };
+      }
+      supabaseRestorePreviewRunning = true;
+      let summary = null;
+      try {
+        let raw;
+        try {
+          raw = localStorage.getItem("movieLog_movies");
+        } catch (_) {
+          throw { code: "LOCAL_STORAGE_UNAVAILABLE" };
+        }
+        let localMovies;
+        try {
+          localMovies = JSON.parse(raw ?? "[]");
+        } catch (_) {
+          throw { code: "INVALID_LOCAL_JSON" };
+        }
+        if (!Array.isArray(localMovies)) throw { code: "INVALID_LOCAL_DATA" };
+        const assertLocalUnchanged = () => {
+          if (localStorage.getItem("movieLog_movies") !== raw) throw { code: "LOCAL_DATA_CHANGED" };
+        };
+        const getCurrentUserId = async () => {
+          if (!client) throw { code: "AUTH_UNAVAILABLE" };
+          const { data, error } = await client.auth.getUser();
+          if (error || !data?.user?.id) throw { code: "AUTH_UNAVAILABLE" };
+          return data.user.id;
+        };
+        const userId = await getCurrentUserId();
+        assertLocalUnchanged();
+        const columns = "id, user_id, legacy_local_id, created_at, tmdb_id, media_type, title, poster_url, overview, rating, favorite, status, genre, year, runtime, country, director, writer, cast, watch_date, comment, series_name, series_order";
+        const remoteRows = [];
+        const seenRowIds = new Set();
+        let offset = 0;
+        let total = null;
+        do {
+          const { data, count, error } = await client.schema("public").from("movie_logs")
+            .select(columns, { count: "exact" })
+            .eq("user_id", userId)
+            .order("id", { ascending: true })
+            .range(offset, offset + 499);
+          assertLocalUnchanged();
+          if (error) throw error;
+          if (!Array.isArray(data) || !Number.isSafeInteger(count) || count < 0) throw { code: "INVALID_LOOKUP_RESPONSE" };
+          if (total === null) total = count;
+          if (count !== total || offset + data.length > total) throw { code: "REMOTE_DATA_CHANGED" };
+          if (data.length === 0 && offset < total) throw { code: "INCOMPLETE_LOOKUP" };
+          for (const row of data) {
+            if (!row || typeof row !== "object" || Array.isArray(row)) throw { code: "INVALID_LOOKUP_RESPONSE" };
+            if (row.user_id !== userId) throw { code: "REMOTE_USER_MISMATCH" };
+            if (typeof row.id === "string" && row.id) {
+              if (seenRowIds.has(row.id)) throw { code: "REMOTE_DATA_CHANGED" };
+              seenRowIds.add(row.id);
+            }
+            remoteRows.push(row);
+          }
+          offset += data.length;
+        } while (offset < total);
+
+        // 現行saveMovie・公開順処理と79件のバックアップで確認した保存形式。
+        const stringFields = {
+          mediaType: "media_type", title: "title", thumbnail: "poster_url", synopsis: "overview",
+          status: "status", genre: "genre", country: "country", director: "director",
+          writer: "writer", cast: "cast", watchDate: "watch_date", comment: "comment", seriesName: "series_name",
+        };
+        const numericStringFields = { year: "year", runtime: "runtime", seriesOrder: "series_order" };
+        const requiredProperties = ["id", "createdAt", ...Object.keys(stringFields), ...Object.keys(numericStringFields), "rating", "favorite"];
+        const restoredMovies = [];
+        const remoteIds = new Map();
+        const localById = new Map();
+        const restoredById = new Map();
+        const details = new Map();
+        const addDetail = (localId, fields) => {
+          if (typeof localId !== "string" || !localId.trim()) return;
+          if (!details.has(localId)) details.set(localId, new Set());
+          for (const field of fields) details.get(localId).add(field);
+        };
+        summary = {
+          "Supabase取得件数": total,
+          "Movie Log形式変換成功": 0,
+          "変換失敗": 0,
+          "IDなし": 0,
+          "ID重複": 0,
+          "titleなし": 0,
+          "基本プロパティ不足": 0,
+          "localStorageとの不一致作品": 0,
+          "localStorage件数": localMovies.length,
+          "localStorageのみ": 0,
+          "Supabaseのみ": 0,
+          "local IDなし・不正": 0,
+          "local ID重複": 0,
+        };
+        for (const row of remoteRows) {
+          const fields = [];
+          const restored = {};
+          for (const [field, column] of Object.entries(stringFields)) {
+            if (row[column] === null) restored[field] = "";
+            else if (typeof row[column] === "string") restored[field] = row[column];
+            else { restored[field] = ""; fields.push(field); }
+          }
+          restored.id = typeof row.legacy_local_id === "string" ? row.legacy_local_id : "";
+          if (!restored.id.trim()) {
+            summary["IDなし"]++;
+            fields.push("id");
+          } else {
+            const count = remoteIds.get(restored.id) || 0;
+            if (count) { summary["ID重複"]++; addDetail(restored.id, ["id"]); }
+            remoteIds.set(restored.id, count + 1);
+          }
+          if (!restored.title.trim()) { summary["titleなし"]++; fields.push("title"); }
+          const createdTime = typeof row.created_at === "string" ? Date.parse(row.created_at) : NaN;
+          restored.createdAt = Number.isFinite(createdTime) ? new Date(createdTime).toISOString() : "";
+          if (!Number.isFinite(createdTime)) fields.push("createdAt");
+          for (const [field, column] of Object.entries(numericStringFields)) {
+            const value = nullableMovieInteger(row[column], -32768, 32767);
+            restored[field] = value === null ? "" : String(value);
+            if (row[column] !== null && value === null) fields.push(field);
+          }
+          // tmdbIdは現行データと同じく、未取得ならプロパティ自体を省略する。
+          const tmdbId = nullableMovieInteger(row.tmdb_id);
+          if (tmdbId !== null) restored.tmdbId = tmdbId;
+          else if (row.tmdb_id !== null) fields.push("tmdbId");
+          const rating = nullableMovieInteger(row.rating, 0, 5);
+          restored.rating = rating ?? 0;
+          if (row.rating !== null && rating === null) fields.push("rating");
+          restored.favorite = row.favorite === true;
+          if (row.favorite !== null && typeof row.favorite !== "boolean") fields.push("favorite");
+          const missingProperties = requiredProperties.filter((field) => !Object.prototype.hasOwnProperty.call(restored, field));
+          if (missingProperties.length) {
+            summary["基本プロパティ不足"]++;
+            fields.push(...missingProperties);
+          }
+          if (fields.length) {
+            summary["変換失敗"]++;
+            addDetail(restored.id, fields);
+            continue;
+          }
+          // この関数内だけの配列。既存movies・localStorage・画面には渡さない。
+          restoredMovies.push(restored);
+          if (!restoredById.has(restored.id)) restoredById.set(restored.id, []);
+          restoredById.get(restored.id).push(restored);
+        }
+        summary["Movie Log形式変換成功"] = restoredMovies.length;
+        for (const movie of localMovies) {
+          if (!movie || typeof movie !== "object" || Array.isArray(movie)
+            || (!(typeof movie.id === "string" && movie.id.trim())
+              && !(typeof movie.id === "number" && Number.isSafeInteger(movie.id)))) {
+            summary["local IDなし・不正"]++;
+            continue;
+          }
+          const localId = String(movie.id);
+          if (!localById.has(localId)) localById.set(localId, []);
+          else { summary["local ID重複"]++; addDetail(localId, ["id"]); }
+          localById.get(localId).push(movie);
+        }
+        const invalidNumber = Symbol("invalid number");
+        const comparableInteger = (value, min = Number.MIN_SAFE_INTEGER, max = Number.MAX_SAFE_INTEGER) => {
+          if (value === undefined || value === null || (typeof value === "string" && !value.trim())) return null;
+          return nullableMovieInteger(value, min, max) ?? invalidNumber;
+        };
+        for (const [localId, entries] of localById) {
+          if (!remoteIds.has(localId)) {
+            summary["localStorageのみ"] += entries.length;
+            addDetail(localId, ["id"]);
+            continue;
+          }
+          const converted = restoredById.get(localId);
+          // 重複IDや変換失敗の作品は、対応を推測して比較しない。
+          if (entries.length !== 1 || remoteIds.get(localId) !== 1 || !converted || converted.length !== 1) continue;
+          const original = entries[0];
+          const restored = converted[0];
+          const fields = [];
+          if (restored.id !== String(original.id)) fields.push("id");
+          const originalTime = typeof original.createdAt === "string" ? Date.parse(original.createdAt) : NaN;
+          if (!Number.isFinite(originalTime) || originalTime !== Date.parse(restored.createdAt)) fields.push("createdAt");
+          for (const field of Object.keys(stringFields)) {
+            if (restored[field] !== (original[field] ?? "")) fields.push(field);
+          }
+          for (const field of Object.keys(numericStringFields)) {
+            if (comparableInteger(restored[field], -32768, 32767) !== comparableInteger(original[field], -32768, 32767)) fields.push(field);
+          }
+          if (comparableInteger(restored.tmdbId) !== comparableInteger(original.tmdbId)) fields.push("tmdbId");
+          const originalRating = Number(original.rating);
+          if (restored.rating !== (Number.isInteger(originalRating) && originalRating >= 0 && originalRating <= 5 ? originalRating : 0)) fields.push("rating");
+          if (restored.favorite !== (original.favorite === true)) fields.push("favorite");
+          if (fields.length) {
+            summary["localStorageとの不一致作品"]++;
+            addDetail(localId, fields);
+          }
+        }
+        for (const [localId, count] of remoteIds) {
+          if (!localById.has(localId)) {
+            summary["Supabaseのみ"] += count;
+            addDetail(localId, ["id"]);
+          }
+        }
+
+        const { count: finalCount, error: finalError } = await client.schema("public").from("movie_logs")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", userId);
+        assertLocalUnchanged();
+        if (finalError) throw finalError;
+        if (!Number.isSafeInteger(finalCount) || finalCount < 0) throw { code: "INVALID_LOOKUP_RESPONSE" };
+        if (finalCount !== total) throw { code: "REMOTE_DATA_CHANGED" };
+        if (await getCurrentUserId() !== userId) throw { code: "AUTH_USER_CHANGED" };
+        assertLocalUnchanged();
+        const ok = restoredMovies.length === total && total === localMovies.length
+          && Object.entries(summary).every(([name, count]) => ["Supabase取得件数", "Movie Log形式変換成功", "localStorage件数"].includes(name) || count === 0);
+        const diagnostics = [...details].map(([legacy_local_id, fields]) => ({ legacy_local_id, fields: [...fields] }));
+        console.log("===== Supabase復元プレビュー =====");
+        console.table(summary);
+        if (ok) console.log(`✅ Supabaseから${total}件をMovie Log形式へ復元できます`);
+        else {
+          console.warn("⚠️ Supabase復元プレビュー 要確認");
+          for (const detail of diagnostics) console.warn(detail);
+        }
+        // DevToolsの戻り値表示にもタイトル・コメントや復元配列を出さない。
+        return { ok, summary, diagnostics };
+      } catch (error) {
+        const code = /^[A-Za-z0-9_]{1,64}$/.test(String(error?.code || "")) ? String(error.code) : "UNKNOWN_ERROR";
+        const reasons = {
+          LOCAL_STORAGE_UNAVAILABLE: "localStorageを読み取れませんでした",
+          INVALID_LOCAL_JSON: "保存JSONを読み取れませんでした",
+          INVALID_LOCAL_DATA: "保存JSONが作品配列ではありません",
+          LOCAL_DATA_CHANGED: "確認中にlocalStorageが変更されました",
+          AUTH_UNAVAILABLE: "ログインユーザーを取得できませんでした",
+          AUTH_USER_CHANGED: "確認中にログインユーザーが変わりました",
+          REMOTE_USER_MISMATCH: "取得行のユーザーが一致しません",
+          INVALID_LOOKUP_RESPONSE: "Supabaseの件数または一覧を取得できませんでした",
+          REMOTE_DATA_CHANGED: "読み取り中にSupabaseの件数または取得行が変わりました",
+          INCOMPLETE_LOOKUP: "Supabaseの全件を取得できませんでした",
+          "42501": "RLSポリシーまたは読み取り権限を確認してください",
+          "42P01": "確認先テーブルが見つかりません",
+          "42703": "確認先の列が見つかりません",
+        };
+        console.warn("⚠️ Supabase復元プレビュー 要確認");
+        if (code === "LOCAL_DATA_CHANGED") console.error("❌ 復元プレビュー中止：localStorageが変更されました");
+        const safeError = { code, message: reasons[code] || "復元プレビューを完了できませんでした。通信環境と読み取り設定を確認してください" };
+        console.error("Supabase復元プレビュー 未完了", safeError);
+        return { ok: false, summary, error: safeError };
+      } finally {
+        supabaseRestorePreviewRunning = false;
+      }
+    };
+    // END manual read-only Supabase restore preview
+
+    // BEGIN manual Supabase restore into empty localStorage only
+    let supabaseRestoreRunning = false;
+    window.restoreMoviesFromSupabase = async function () {
+      if (supabaseRestoreRunning) {
+        console.warn("⚠️ Supabase復元はすでに実行中です");
+        return { ok: false };
+      }
+      supabaseRestoreRunning = true;
+      let summary = null;
+      let storageSaved = false;
+      try {
+        const readLocalCount = () => {
+          let raw;
+          try {
+            raw = localStorage.getItem("movieLog_movies");
+          } catch (_) {
+            throw { code: "LOCAL_STORAGE_UNAVAILABLE" };
+          }
+          if (raw === null) return 0;
+          let saved;
+          try {
+            saved = JSON.parse(raw);
+          } catch (_) {
+            throw { code: "INVALID_LOCAL_JSON" };
+          }
+          if (!Array.isArray(saved)) throw { code: "INVALID_LOCAL_DATA" };
+          return saved.length;
+        };
+        if (readLocalCount() > 0) {
+          console.error("❌ 復元中止：localStorageに既存の映画データがあります");
+          return { ok: false };
+        }
+        const getCurrentUserId = async () => {
+          try {
+            if (!client) throw { code: "AUTH_UNAVAILABLE" };
+            const { data, error } = await client.auth.getUser();
+            if (error || !data?.user?.id) throw { code: "AUTH_UNAVAILABLE" };
+            return data.user.id;
+          } catch (_) {
+            throw { code: "AUTH_UNAVAILABLE" };
+          }
+        };
+        const userId = await getCurrentUserId();
+        const columns = "id, user_id, legacy_local_id, created_at, tmdb_id, media_type, title, poster_url, overview, rating, favorite, status, genre, year, runtime, country, director, writer, cast, watch_date, comment, series_name, series_order";
+        const remoteRows = [];
+        const seenRowIds = new Set();
+        let total = null;
+        let offset = 0;
+        do {
+          const { data, count, error } = await client.schema("public").from("movie_logs")
+            .select(columns, { count: "exact" })
+            .eq("user_id", userId)
+            .order("id", { ascending: true })
+            .range(offset, offset + 499);
+          if (error) throw error;
+          if (!Array.isArray(data) || !Number.isSafeInteger(count) || count < 0) throw { code: "INVALID_LOOKUP_RESPONSE" };
+          if (total === null) total = count;
+          if (count !== total || offset + data.length > total) throw { code: "REMOTE_DATA_CHANGED" };
+          if (data.length === 0 && offset < total) throw { code: "INCOMPLETE_LOOKUP" };
+          for (const row of data) {
+            if (!row || typeof row !== "object" || Array.isArray(row)) throw { code: "INVALID_LOOKUP_RESPONSE" };
+            if (row.user_id !== userId) throw { code: "REMOTE_USER_MISMATCH" };
+            if (typeof row.id === "string" && row.id) {
+              if (seenRowIds.has(row.id)) throw { code: "REMOTE_DATA_CHANGED" };
+              seenRowIds.add(row.id);
+            }
+            remoteRows.push(row);
+          }
+          offset += data.length;
+        } while (offset < total);
+
+        // 既存previewSupabaseRestoreの変換規則を維持し、同じ21項目だけを復元する。
+        const stringFields = {
+          mediaType: "media_type", title: "title", thumbnail: "poster_url", synopsis: "overview",
+          status: "status", genre: "genre", country: "country", director: "director",
+          writer: "writer", cast: "cast", watchDate: "watch_date", comment: "comment", seriesName: "series_name",
+        };
+        const numericStringFields = { year: "year", runtime: "runtime", seriesOrder: "series_order" };
+        const requiredProperties = ["id", "createdAt", ...Object.keys(stringFields), ...Object.keys(numericStringFields), "rating", "favorite"];
+        const restoredMovies = [];
+        const remoteIds = new Map();
+        const details = new Map();
+        const addDetail = (localId, fields) => {
+          if (typeof localId !== "string" || !localId.trim()) return;
+          if (!details.has(localId)) details.set(localId, new Set());
+          for (const field of fields) details.get(localId).add(field);
+        };
+        summary = {
+          "Supabase取得件数": total,
+          "Movie Log形式変換成功": 0,
+          "変換失敗": 0,
+          "IDなし": 0,
+          "ID重複": 0,
+          "titleなし": 0,
+          "基本プロパティ不足": 0,
+        };
+        for (const row of remoteRows) {
+          const fields = [];
+          const restored = {};
+          for (const [field, column] of Object.entries(stringFields)) {
+            if (row[column] === null) restored[field] = "";
+            else if (typeof row[column] === "string") restored[field] = row[column];
+            else { restored[field] = ""; fields.push(field); }
+          }
+          restored.id = typeof row.legacy_local_id === "string" ? row.legacy_local_id : "";
+          if (!restored.id.trim()) {
+            summary["IDなし"]++;
+            fields.push("id");
+          } else {
+            const count = remoteIds.get(restored.id) || 0;
+            if (count) { summary["ID重複"]++; addDetail(restored.id, ["id"]); }
+            remoteIds.set(restored.id, count + 1);
+          }
+          if (!restored.title.trim()) { summary["titleなし"]++; fields.push("title"); }
+          const createdTime = typeof row.created_at === "string" ? Date.parse(row.created_at) : NaN;
+          restored.createdAt = Number.isFinite(createdTime) ? new Date(createdTime).toISOString() : "";
+          if (!Number.isFinite(createdTime)) fields.push("createdAt");
+          for (const [field, column] of Object.entries(numericStringFields)) {
+            const value = nullableMovieInteger(row[column], -32768, 32767);
+            restored[field] = value === null ? "" : String(value);
+            if (row[column] !== null && value === null) fields.push(field);
+          }
+          // tmdbIdは現行データと同じく、未取得ならプロパティ自体を省略する。
+          const tmdbId = nullableMovieInteger(row.tmdb_id);
+          if (tmdbId !== null) restored.tmdbId = tmdbId;
+          else if (row.tmdb_id !== null) fields.push("tmdbId");
+          const rating = nullableMovieInteger(row.rating, 0, 5);
+          restored.rating = rating ?? 0;
+          if (row.rating !== null && rating === null) fields.push("rating");
+          restored.favorite = row.favorite === true;
+          if (row.favorite !== null && typeof row.favorite !== "boolean") fields.push("favorite");
+          const missingProperties = requiredProperties.filter((field) => !Object.prototype.hasOwnProperty.call(restored, field));
+          if (missingProperties.length) {
+            summary["基本プロパティ不足"]++;
+            fields.push(...missingProperties);
+          }
+          if (fields.length) {
+            summary["変換失敗"]++;
+            addDetail(restored.id, fields);
+            continue;
+          }
+          restoredMovies.push(restored);
+        }
+        summary["Movie Log形式変換成功"] = restoredMovies.length;
+        const conversionOk = restoredMovies.length === total
+          && Object.entries(summary).every(([name, count]) => ["Supabase取得件数", "Movie Log形式変換成功"].includes(name) || count === 0);
+        if (!conversionOk) {
+          console.error("❌ 復元中止：Supabaseデータの変換結果を確認してください");
+          console.table(summary);
+          const diagnostics = [...details].map(([legacy_local_id, fields]) => ({ legacy_local_id, fields: [...fields] }));
+          for (const detail of diagnostics) console.warn(detail);
+          return { ok: false, summary, diagnostics };
+        }
+
+        const { count: finalCount, error: finalError } = await client.schema("public").from("movie_logs")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", userId);
+        if (finalError) throw finalError;
+        if (!Number.isSafeInteger(finalCount) || finalCount < 0) throw { code: "INVALID_LOOKUP_RESPONSE" };
+        if (finalCount !== total) throw { code: "REMOTE_DATA_CHANGED" };
+        if (await getCurrentUserId() !== userId) throw { code: "AUTH_USER_CHANGED" };
+        const serialized = JSON.stringify(restoredMovies);
+        // 最後の非同期処理後に再確認し、保存までawaitを挟まない。
+        if (readLocalCount() > 0) {
+          console.error("❌ 復元中止：処理中にlocalStorageへデータが追加されました");
+          return { ok: false, summary };
+        }
+        try {
+          localStorage.setItem("movieLog_movies", serialized);
+        } catch (_) {
+          throw { code: "LOCAL_STORAGE_SAVE_FAILED" };
+        }
+        storageSaved = true;
+
+        let savedRaw;
+        let savedMovies;
+        try {
+          savedRaw = localStorage.getItem("movieLog_movies");
+          savedMovies = JSON.parse(savedRaw);
+        } catch (_) {
+          throw { code: "SAVE_VERIFICATION_FAILED" };
+        }
+        if (savedRaw !== serialized || !Array.isArray(savedMovies) || savedMovies.length !== restoredMovies.length) throw { code: "SAVE_VERIFICATION_FAILED" };
+        const expectedIds = new Set(restoredMovies.map((movie) => movie.id));
+        const savedIds = new Set();
+        for (const movie of savedMovies) {
+          if (!movie || typeof movie.id !== "string" || !movie.id.trim()
+            || savedIds.has(movie.id) || !expectedIds.has(movie.id)) throw { code: "SAVE_VERIFICATION_FAILED" };
+          savedIds.add(movie.id);
+        }
+        if (savedIds.size !== expectedIds.size) throw { code: "SAVE_VERIFICATION_FAILED" };
+        const result = { "Supabase取得件数": total, "localStorage保存件数": savedMovies.length, "失敗": 0 };
+        console.log("===== Supabase復元 完了 =====");
+        console.table(result);
+        console.log("✅ SupabaseからMovie Logを復元しました");
+        console.info("ℹ️ ページを再読み込みすると復元データが表示されます");
+        return { ok: true, summary: result };
+      } catch (error) {
+        const code = /^[A-Za-z0-9_]{1,64}$/.test(String(error?.code || "")) ? String(error.code) : "UNKNOWN_ERROR";
+        const reasons = {
+          LOCAL_STORAGE_UNAVAILABLE: "localStorageを読み取れませんでした",
+          INVALID_LOCAL_JSON: "既存の保存JSONを読み取れないため、復元を中止しました",
+          INVALID_LOCAL_DATA: "既存の保存JSONが配列ではないため、復元を中止しました",
+          AUTH_UNAVAILABLE: "ログインユーザーを取得できませんでした",
+          AUTH_USER_CHANGED: "処理中にログインユーザーが変わったため、復元を中止しました",
+          REMOTE_USER_MISMATCH: "取得行のユーザーが一致しないため、復元を中止しました",
+          INVALID_LOOKUP_RESPONSE: "Supabaseの件数または一覧を取得できませんでした",
+          REMOTE_DATA_CHANGED: "読み取り中にSupabaseの件数または取得行が変わりました",
+          INCOMPLETE_LOOKUP: "Supabaseの全件を取得できませんでした",
+          LOCAL_STORAGE_SAVE_FAILED: "localStorageへ保存できませんでした。保存容量と利用設定を確認してください",
+          SAVE_VERIFICATION_FAILED: "保存後のデータを確認できませんでした。自動修正や削除は行っていません",
+          "42501": "RLSポリシーまたは読み取り権限を確認してください",
+          "42P01": "確認先テーブルが見つかりません",
+          "42703": "確認先の列が見つかりません",
+        };
+        if (code === "AUTH_UNAVAILABLE") console.warn("⚠️ 復元中止：ログインユーザーを取得できませんでした");
+        const safeError = { code, message: reasons[code] || "復元を完了できませんでした。通信環境と読み取り設定を確認してください" };
+        console.error("❌ Supabase復元 失敗", safeError);
+        return { ok: false, summary, storageSaved, error: safeError };
+      } finally {
+        supabaseRestoreRunning = false;
+        scheduleAutoInitializeSupabaseSyncMetadata();
+      }
+    };
+    // END manual Supabase restore into empty localStorage only
+
+    // BEGIN manual read-only Supabase sync diff check
+    let supabaseSyncDiffRunning = false;
+    window.checkSupabaseSyncDiff = async function () {
+      if (supabaseSyncDiffRunning) {
+        console.warn("⚠️ 同期差分チェックはすでに実行中です");
+        return { ok: false };
+      }
+      supabaseSyncDiffRunning = true;
+      let summary = null;
+      try {
+        const readLocalRaw = () => {
+          try {
+            return localStorage.getItem("movieLog_movies");
+          } catch (_) {
+            throw { code: "LOCAL_STORAGE_UNAVAILABLE" };
+          }
+        };
+        const raw = readLocalRaw();
+        let localMovies;
+        try {
+          localMovies = JSON.parse(raw ?? "[]");
+        } catch (_) {
+          throw { code: "INVALID_LOCAL_JSON" };
+        }
+        if (!Array.isArray(localMovies)) throw { code: "INVALID_LOCAL_DATA" };
+        const assertLocalUnchanged = () => {
+          if (readLocalRaw() !== raw) throw { code: "LOCAL_DATA_CHANGED" };
+        };
+        const getCurrentUserId = async () => {
+          if (!client) throw { code: "AUTH_UNAVAILABLE" };
+          const { data, error } = await client.auth.getUser();
+          if (error || !data?.user?.id) throw { code: "AUTH_UNAVAILABLE" };
+          return data.user.id;
+        };
+        const userId = await getCurrentUserId();
+        assertLocalUnchanged();
+        const columns = "id, user_id, legacy_local_id, created_at, tmdb_id, media_type, title, poster_url, overview, rating, favorite, status, genre, year, runtime, country, director, writer, cast, watch_date, comment, series_name, series_order, updated_at";
+        const remoteRows = [];
+        const seenRowIds = new Set();
+        let total = null;
+        let offset = 0;
+        do {
+          const { data, count, error } = await client.schema("public").from("movie_logs")
+            .select(columns, { count: "exact" })
+            .eq("user_id", userId)
+            .order("id", { ascending: true })
+            .range(offset, offset + 499);
+          if (error) throw error;
+          if (!Array.isArray(data) || !Number.isSafeInteger(count) || count < 0) throw { code: "INVALID_LOOKUP_RESPONSE" };
+          if (total === null) total = count;
+          if (count !== total || offset + data.length > total) throw { code: "REMOTE_DATA_CHANGED" };
+          if (data.length === 0 && offset < total) throw { code: "INCOMPLETE_LOOKUP" };
+          for (const row of data) {
+            if (!row || typeof row !== "object" || Array.isArray(row)
+              || typeof row.id !== "string" || !row.id) throw { code: "INVALID_LOOKUP_RESPONSE" };
+            if (row.user_id !== userId) throw { code: "REMOTE_USER_MISMATCH" };
+            // UUIDはページ重複の検出にだけ使用し、作品内容の比較には使用しない。
+            if (seenRowIds.has(row.id)) throw { code: "REMOTE_DATA_CHANGED" };
+            seenRowIds.add(row.id);
+            remoteRows.push(row);
+          }
+          offset += data.length;
+          assertLocalUnchanged();
+        } while (offset < total);
+
+        summary = {
+          "localStorage件数": localMovies.length,
+          "Supabase件数": total,
+          "完全一致": 0,
+          "localStorageのみ": 0,
+          "Supabaseのみ": 0,
+          "内容差分あり": 0,
+          // 重複件数は同じIDの2件目以降。重複IDの作品は通常比較から除外する。
+          "local ID重複": 0,
+          "Supabase legacy ID重複": 0,
+          "local IDなし・不正": 0,
+          "Supabase legacy IDなし・不正": 0,
+          // 対応付け不能な作品数。重複IDに対応する両側の作品も含む。
+          "ID重複・不正": 0,
+          "updated_at不正": 0,
+        };
+        const localById = new Map();
+        const remoteById = new Map();
+        for (const movie of localMovies) {
+          if (!movie || typeof movie !== "object" || Array.isArray(movie)
+            || (!(typeof movie.id === "string" && movie.id.trim())
+              && !(typeof movie.id === "number" && Number.isSafeInteger(movie.id)))) {
+            summary["local IDなし・不正"]++;
+            summary["ID重複・不正"]++;
+            continue;
+          }
+          const localId = String(movie.id);
+          if (!localById.has(localId)) localById.set(localId, []);
+          localById.get(localId).push(movie);
+        }
+        for (const row of remoteRows) {
+          // updated_atは有効性の件数だけ集計し、新旧や内容一致の判定には使わない。
+          if (typeof row.updated_at !== "string" || !Number.isFinite(Date.parse(row.updated_at))) summary["updated_at不正"]++;
+          const localId = row.legacy_local_id;
+          if (typeof localId !== "string" || !localId.trim()) {
+            summary["Supabase legacy IDなし・不正"]++;
+            summary["ID重複・不正"]++;
+            continue;
+          }
+          if (!remoteById.has(localId)) remoteById.set(localId, []);
+          remoteById.get(localId).push(row);
+        }
+
+        const invalidNumber = Symbol("invalid number");
+        const numericLimits = {
+          tmdb_id: [Number.MIN_SAFE_INTEGER, Number.MAX_SAFE_INTEGER],
+          year: [-32768, 32767],
+          runtime: [-32768, 32767],
+          series_order: [-32768, 32767],
+        };
+        const sameField = (field, expected, actual) => {
+          if (field === "created_at") {
+            if (expected === null && actual === null) return true;
+            if (typeof expected !== "string" || typeof actual !== "string") return false;
+            const expectedTime = Date.parse(expected);
+            const actualTime = Date.parse(actual);
+            return Number.isFinite(expectedTime) && Number.isFinite(actualTime) && expectedTime === actualTime;
+          }
+          if (numericLimits[field]) {
+            const number = actual === null || (typeof actual === "string" && !actual.trim())
+              ? null : nullableMovieInteger(actual, ...numericLimits[field]) ?? invalidNumber;
+            return expected === number;
+          }
+          if (field === "rating") {
+            const number = actual === null ? 0
+              : typeof actual === "number" || typeof actual === "string" ? Number(actual) : NaN;
+            return Number.isInteger(number) && number >= 0 && number <= 5 && expected === number;
+          }
+          return expected === actual;
+        };
+        const mismatches = [];
+        const idIssues = [];
+        const allIds = new Set([...localById.keys(), ...remoteById.keys()]);
+        for (const localId of allIds) {
+          const entries = localById.get(localId) || [];
+          const rows = remoteById.get(localId) || [];
+          summary["local ID重複"] += Math.max(0, entries.length - 1);
+          summary["Supabase legacy ID重複"] += Math.max(0, rows.length - 1);
+          if (entries.length > 1 || rows.length > 1) {
+            summary["ID重複・不正"] += entries.length + rows.length;
+            idIssues.push({ legacy_local_id: localId, fields: ["legacy_local_id"] });
+            continue;
+          }
+          if (entries.length === 0) {
+            summary["Supabaseのみ"]++;
+            idIssues.push({ legacy_local_id: localId, fields: ["legacy_local_id"] });
+            continue;
+          }
+          if (rows.length === 0) {
+            summary["localStorageのみ"]++;
+            idIssues.push({ legacy_local_id: localId, fields: ["legacy_local_id"] });
+            continue;
+          }
+          // 既存の保存用変換を再利用する。payloadは比較するだけで送信しない。
+          const payload = buildSupabaseMoviePayload(entries[0], userId);
+          const fields = Object.keys(payload).filter((field) => !sameField(field, payload[field], rows[0][field]));
+          if (fields.length) {
+            summary["内容差分あり"]++;
+            mismatches.push({ legacy_local_id: localId, fields });
+          } else {
+            summary["完全一致"]++;
+          }
+        }
+
+        if (await getCurrentUserId() !== userId) throw { code: "AUTH_USER_CHANGED" };
+        const { count: finalCount, error: finalError } = await client.schema("public").from("movie_logs")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", userId);
+        if (finalError) throw finalError;
+        if (!Number.isSafeInteger(finalCount) || finalCount < 0) throw { code: "INVALID_LOOKUP_RESPONSE" };
+        if (finalCount !== total) throw { code: "REMOTE_DATA_CHANGED" };
+        assertLocalUnchanged();
+        const ok = summary["localStorageのみ"] === 0 && summary["Supabaseのみ"] === 0
+          && summary["内容差分あり"] === 0 && summary["ID重複・不正"] === 0
+          && summary["updated_at不正"] === 0;
+        console.log("===== Supabase同期 差分チェック =====");
+        console.table(summary);
+        if (ok) {
+          console.log("✅ 同期差分なし");
+        } else {
+          console.warn("⚠️ 同期差分あり");
+          for (const detail of idIssues) console.warn(detail);
+          for (const detail of mismatches) console.warn(detail);
+        }
+        // 映画本文やユーザーID、認証情報は戻り値にも含めない。
+        return { ok, summary, idIssues, mismatches };
+      } catch (error) {
+        const code = /^[A-Za-z0-9_]{1,64}$/.test(String(error?.code || "")) ? String(error.code) : "UNKNOWN_ERROR";
+        const reasons = {
+          LOCAL_STORAGE_UNAVAILABLE: "localStorageを読み取れませんでした",
+          INVALID_LOCAL_JSON: "保存JSONを読み取れませんでした",
+          INVALID_LOCAL_DATA: "保存JSONが作品配列ではありません",
+          LOCAL_DATA_CHANGED: "チェック中にlocalStorageが変更されました",
+          AUTH_UNAVAILABLE: "ログインユーザーを取得できませんでした",
+          AUTH_USER_CHANGED: "チェック中にログインユーザーが変わりました",
+          REMOTE_USER_MISMATCH: "取得行のユーザーが一致しません",
+          INVALID_LOOKUP_RESPONSE: "Supabaseの件数または一覧を取得できませんでした",
+          REMOTE_DATA_CHANGED: "読み取り中にSupabaseの件数または取得行が変わりました",
+          INCOMPLETE_LOOKUP: "Supabaseの全件を取得できませんでした",
+          "42501": "RLSポリシーまたは読み取り権限を確認してください",
+          "42P01": "確認先テーブルが見つかりません",
+          "42703": "確認先の列が見つかりません",
+        };
+        if (code === "LOCAL_DATA_CHANGED") {
+          console.error("❌ 同期差分チェック中止：localStorageが変更されました");
+        } else if (code === "REMOTE_DATA_CHANGED") {
+          console.error("❌ 同期差分チェック中止：Supabaseデータが変更されました");
+        } else {
+          console.warn("⚠️ 同期差分チェック 要確認");
+        }
+        const safeError = { code, message: reasons[code] || "チェックを完了できませんでした。通信環境と読み取り設定を確認してください" };
+        console.error("同期差分チェック 未完了", safeError);
+        return { ok: false, summary, error: safeError };
+      } finally {
+        supabaseSyncDiffRunning = false;
+        scheduleAutoInitializeSupabaseSyncMetadata();
+      }
+    };
+    // END manual read-only Supabase sync diff check
+
+    // BEGIN internal sync metadata helpers (shared internal functions)
+    function validateMovieLogSyncRemoteReference(remoteId, remoteUpdatedAt, allowNull = true) {
+      if (allowNull && remoteId === null && remoteUpdatedAt === null) return;
+      if (typeof remoteId !== "string"
+        || !/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(remoteId)) throw { code: "SYNC_META_INVALID_REMOTE_ID" };
+      if (typeof remoteUpdatedAt !== "string" || !Number.isFinite(Date.parse(remoteUpdatedAt))) throw { code: "SYNC_META_INVALID_REMOTE_TIME" };
+    }
+
+    function validateMovieLogSyncMetadata(metadata, userId) {
+      if (typeof userId !== "string" || !userId.trim()) throw { code: "SYNC_META_INVALID_USER" };
+      if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) throw { code: "SYNC_META_INVALID_DATA" };
+      if (metadata.version !== 1) throw { code: "SYNC_META_INVALID_VERSION" };
+      if (metadata.userId !== userId) throw { code: "SYNC_META_USER_MISMATCH" };
+      if (typeof metadata.initializedAt !== "string" || !Number.isFinite(Date.parse(metadata.initializedAt))) throw { code: "SYNC_META_INVALID_INITIALIZED_AT" };
+      if (!metadata.items || typeof metadata.items !== "object" || Array.isArray(metadata.items)) throw { code: "SYNC_META_INVALID_ITEMS" };
+      for (const [localId, item] of Object.entries(metadata.items)) {
+        if (!localId.trim()) throw { code: "SYNC_META_INVALID_LOCAL_ID" };
+        if (!item || typeof item !== "object" || Array.isArray(item)) throw { code: "SYNC_META_INVALID_ITEM" };
+        if (typeof item.dirty !== "boolean" || typeof item.pendingDelete !== "boolean"
+          || (item.dirty && item.pendingDelete)) throw { code: "SYNC_META_INVALID_FLAGS" };
+        // 両方null、またはUUIDと有効日時の組だけを許可する。片方だけnullは拒否する。
+        validateMovieLogSyncRemoteReference(item.remoteId, item.remoteUpdatedAt);
+      }
+    }
+
+    function readMovieLogSyncMetadataState(userId) {
+      let raw;
+      try {
+        raw = localStorage.getItem("movieLog_sync_meta_v1");
+      } catch (_) {
+        throw { code: "SYNC_META_STORAGE_UNAVAILABLE" };
+      }
+      if (raw === null) throw { code: "SYNC_META_MISSING" };
+      let metadata;
+      try {
+        metadata = JSON.parse(raw);
+      } catch (_) {
+        throw { code: "SYNC_META_INVALID_JSON" };
+      }
+      validateMovieLogSyncMetadata(metadata, userId);
+      // 読み取ったコピーだけを扱う。__proto__などのIDも通常のキーとして保持する。
+      metadata.items = Object.assign(Object.create(null), metadata.items);
+      return { raw, metadata };
+    }
+
+    function readMovieLogSyncMetadata(userId) {
+      return readMovieLogSyncMetadataState(userId).metadata;
+    }
+
+    function normalizeMovieLogSyncLocalId(localId) {
+      if (!(typeof localId === "string" && localId.trim())
+        && !(typeof localId === "number" && Number.isSafeInteger(localId))) throw { code: "SYNC_META_INVALID_LOCAL_ID" };
+      // 既存の対応付けと同じString(id)を使用し、IDの空白は勝手に削除しない。
+      return String(localId);
+    }
+
+    function updateMovieLogSyncMetadata(userId, change) {
+      // 各操作で必ず最新値を読み直す。キャッシュや映画データは使用しない。
+      const { raw, metadata } = readMovieLogSyncMetadataState(userId);
+      const changed = change(metadata);
+      validateMovieLogSyncMetadata(metadata, userId);
+      if (changed === false) return false;
+      const serialized = JSON.stringify(metadata);
+      let currentRaw;
+      try {
+        currentRaw = localStorage.getItem("movieLog_sync_meta_v1");
+      } catch (_) {
+        throw { code: "SYNC_META_STORAGE_UNAVAILABLE" };
+      }
+      if (currentRaw !== raw) throw { code: "SYNC_META_CHANGED" };
+      // 同期処理のない、読み直し・検証済みの変更だけを保存する。awaitは挟まない。
+      try {
+        localStorage.setItem("movieLog_sync_meta_v1", serialized);
+      } catch (_) {
+        throw { code: "SYNC_META_SAVE_FAILED" };
+      }
+      let savedRaw;
+      try {
+        savedRaw = localStorage.getItem("movieLog_sync_meta_v1");
+      } catch (_) {
+        throw { code: "SYNC_META_READBACK_FAILED" };
+      }
+      // 確認失敗でも、自動修正・削除・ロールバックは行わない。
+      if (savedRaw !== serialized) throw { code: "SYNC_META_READBACK_FAILED" };
+      return true;
+    }
+
+    function markMovieSyncDirty(localId, userId) {
+      const id = normalizeMovieLogSyncLocalId(localId);
+      return updateMovieLogSyncMetadata(userId, (metadata) => {
+        const exists = Object.prototype.hasOwnProperty.call(metadata.items, id);
+        const item = exists ? metadata.items[id] : { remoteId: null, remoteUpdatedAt: null };
+        if (exists && item.dirty === true && item.pendingDelete === false) return false;
+        metadata.items[id] = { ...item, dirty: true, pendingDelete: false };
+        return true;
+      });
+    }
+
+    function markMovieSyncPendingDelete(localId, userId) {
+      const id = normalizeMovieLogSyncLocalId(localId);
+      return updateMovieLogSyncMetadata(userId, (metadata) => {
+        if (!Object.prototype.hasOwnProperty.call(metadata.items, id)) throw { code: "SYNC_META_ITEM_MISSING" };
+        const item = metadata.items[id];
+        // remoteIdがnullでも、保存成功を未確認なだけで、Supabaseに存在しないとは限らない。
+        // 削除待ちitemを保持し、将来の同期処理でlegacy_local_idによる存在確認後に判断する。
+        // このヘルパーではSupabaseへのアクセスやitemの自動除去は行わない。
+        if (item.pendingDelete === true && item.dirty === false) return false;
+        metadata.items[id] = { ...item, dirty: false, pendingDelete: true };
+        return true;
+      });
+    }
+
+    function markMovieSyncRemoteSuccess(localId, userId, remoteId, remoteUpdatedAt) {
+      const id = normalizeMovieLogSyncLocalId(localId);
+      // 成功反映にはUUIDと更新日時の両方が必要。nullの組もここでは許可しない。
+      validateMovieLogSyncRemoteReference(remoteId, remoteUpdatedAt, false);
+      return updateMovieLogSyncMetadata(userId, (metadata) => {
+        const exists = Object.prototype.hasOwnProperty.call(metadata.items, id);
+        const item = exists ? metadata.items[id] : {};
+        if (exists && item.remoteId === remoteId && item.remoteUpdatedAt === remoteUpdatedAt
+          && item.dirty === false && item.pendingDelete === false) return false;
+        metadata.items[id] = { ...item, remoteId, remoteUpdatedAt, dirty: false, pendingDelete: false };
+        return true;
+      });
+    }
+
+    function removeMovieSyncMetadataItem(localId, userId) {
+      const id = normalizeMovieLogSyncLocalId(localId);
+      // 呼び出し元がSupabase DELETE成功を確認した後に使う。ここでは通信しない。
+      return updateMovieLogSyncMetadata(userId, (metadata) => {
+        if (!Object.prototype.hasOwnProperty.call(metadata.items, id)) return false;
+        delete metadata.items[id];
+        return true;
+      });
+    }
+    // END internal sync metadata helpers
+
+    // BEGIN manual Supabase sync metadata initialization (movie data unchanged)
+    let supabaseSyncMetadataInitializing = false;
+    window.initializeSupabaseSyncMetadata = async function () {
+      if (supabaseSyncMetadataInitializing) {
+        console.warn("⚠️ 同期メタデータの初期化はすでに実行中です");
+        return { ok: false };
+      }
+      supabaseSyncMetadataInitializing = true;
+      let storageSaved = false;
+      try {
+        const readStorage = (key) => {
+          try {
+            return localStorage.getItem(key);
+          } catch (_) {
+            throw { code: "LOCAL_STORAGE_UNAVAILABLE" };
+          }
+        };
+        const raw = readStorage("movieLog_movies");
+        const assertLocalUnchanged = () => {
+          if (readStorage("movieLog_movies") !== raw) throw { code: "LOCAL_DATA_CHANGED" };
+        };
+        const assertMetadataAbsent = () => {
+          // 空文字や不正JSONも、既存値として保護する。
+          if (readStorage("movieLog_sync_meta_v1") !== null) throw { code: "METADATA_EXISTS" };
+        };
+        assertMetadataAbsent();
+        const getCurrentUserId = async () => {
+          try {
+            if (!client) throw { code: "AUTH_UNAVAILABLE" };
+            const { data, error } = await client.auth.getUser();
+            if (error || !data?.user?.id) throw { code: "AUTH_UNAVAILABLE" };
+            return data.user.id;
+          } catch (_) {
+            throw { code: "AUTH_UNAVAILABLE" };
+          }
+        };
+        const userId = await getCurrentUserId();
+        assertLocalUnchanged();
+        if (typeof window.checkSupabaseSyncDiff !== "function") throw { code: "DIFF_CHECK_UNAVAILABLE" };
+        const diffResult = await window.checkSupabaseSyncDiff();
+        if (diffResult?.ok !== true) throw { code: "SYNC_DIFF_FOUND" };
+        assertLocalUnchanged();
+        assertMetadataAbsent();
+        if (await getCurrentUserId() !== userId) throw { code: "AUTH_USER_CHANGED" };
+
+        let localMovies;
+        try {
+          localMovies = JSON.parse(raw ?? "[]");
+        } catch (_) {
+          throw { code: "INVALID_LOCAL_JSON" };
+        }
+        if (!Array.isArray(localMovies)) throw { code: "INVALID_LOCAL_DATA" };
+        const localIds = new Set();
+        for (const movie of localMovies) {
+          if (!movie || typeof movie !== "object" || Array.isArray(movie)
+            || (!(typeof movie.id === "string" && movie.id.trim())
+              && !(typeof movie.id === "number" && Number.isSafeInteger(movie.id)))) throw { code: "INVALID_LOCAL_ID" };
+          const localId = String(movie.id);
+          if (localIds.has(localId)) throw { code: "DUPLICATE_LOCAL_IDS" };
+          localIds.add(localId);
+        }
+        if (diffResult.summary?.["localStorage件数"] !== localMovies.length) throw { code: "LOCAL_DATA_CHANGED" };
+
+        const uuidPattern = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
+        // __proto__などのIDも、通常のキーとして安全に保存する。
+        const items = Object.create(null);
+        const remoteIds = new Set();
+        let total = null;
+        let offset = 0;
+        do {
+          const { data, count, error } = await client.schema("public").from("movie_logs")
+            .select("id, user_id, legacy_local_id, updated_at", { count: "exact" })
+            .eq("user_id", userId)
+            .order("id", { ascending: true })
+            .range(offset, offset + 499);
+          if (error) throw error;
+          if (!Array.isArray(data) || !Number.isSafeInteger(count) || count < 0) throw { code: "INVALID_LOOKUP_RESPONSE" };
+          if (total === null) total = count;
+          if (count !== total || count !== localMovies.length
+            || count !== diffResult.summary?.["Supabase件数"]
+            || offset + data.length > total) throw { code: "REMOTE_DATA_CHANGED" };
+          if (data.length === 0 && offset < total) throw { code: "INCOMPLETE_LOOKUP" };
+          for (const row of data) {
+            if (!row || typeof row !== "object" || Array.isArray(row)) throw { code: "INVALID_LOOKUP_RESPONSE" };
+            if (row.user_id !== userId) throw { code: "REMOTE_USER_MISMATCH" };
+            if (typeof row.id !== "string" || !uuidPattern.test(row.id)) throw { code: "INVALID_REMOTE_UUID" };
+            const remoteId = row.id.toLowerCase();
+            if (remoteIds.has(remoteId)) throw { code: "REMOTE_DATA_CHANGED" };
+            remoteIds.add(remoteId);
+            const localId = row.legacy_local_id;
+            if (typeof localId !== "string" || !localId.trim()) throw { code: "INVALID_REMOTE_ID" };
+            if (Object.prototype.hasOwnProperty.call(items, localId)) throw { code: "DUPLICATE_REMOTE_IDS" };
+            if (!localIds.has(localId)) throw { code: "REMOTE_ID_SET_MISMATCH" };
+            if (typeof row.updated_at !== "string" || !Number.isFinite(Date.parse(row.updated_at))) throw { code: "INVALID_REMOTE_UPDATED_AT" };
+            items[localId] = {
+              remoteId: row.id,
+              remoteUpdatedAt: row.updated_at,
+              dirty: false,
+              pendingDelete: false,
+            };
+          }
+          offset += data.length;
+          assertLocalUnchanged();
+          assertMetadataAbsent();
+        } while (offset < total);
+        if (Object.keys(items).length !== total
+          || [...localIds].some((localId) => !Object.prototype.hasOwnProperty.call(items, localId))) throw { code: "REMOTE_ID_SET_MISMATCH" };
+
+        const { count: finalCount, error: finalError } = await client.schema("public").from("movie_logs")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", userId);
+        if (finalError) throw finalError;
+        if (!Number.isSafeInteger(finalCount) || finalCount < 0) throw { code: "INVALID_LOOKUP_RESPONSE" };
+        if (finalCount !== total) throw { code: "REMOTE_DATA_CHANGED" };
+        if (await getCurrentUserId() !== userId) throw { code: "AUTH_USER_CHANGED" };
+        const syncMetadata = {
+          version: 1,
+          userId,
+          initializedAt: new Date().toISOString(),
+          items,
+        };
+        const serialized = JSON.stringify(syncMetadata);
+        // 最後の非同期処理後に再確認し、保存までawaitを挟まない。
+        assertLocalUnchanged();
+        assertMetadataAbsent();
+        try {
+          localStorage.setItem("movieLog_sync_meta_v1", serialized);
+        } catch (_) {
+          throw { code: "METADATA_SAVE_FAILED" };
+        }
+        storageSaved = true;
+
+        const savedRaw = readStorage("movieLog_sync_meta_v1");
+        let saved;
+        try {
+          saved = JSON.parse(savedRaw);
+        } catch (_) {
+          throw { code: "SAVE_VERIFICATION_FAILED" };
+        }
+        if (savedRaw !== serialized || !saved || typeof saved !== "object" || Array.isArray(saved)
+          || saved.version !== 1 || saved.userId !== userId
+          || saved.initializedAt !== syncMetadata.initializedAt
+          || !Number.isFinite(Date.parse(saved.initializedAt))
+          || !saved.items || typeof saved.items !== "object" || Array.isArray(saved.items)
+          || Object.keys(saved.items).length !== total) throw { code: "SAVE_VERIFICATION_FAILED" };
+        for (const localId of localIds) {
+          if (!Object.prototype.hasOwnProperty.call(saved.items, localId)) throw { code: "SAVE_VERIFICATION_FAILED" };
+          const item = saved.items[localId];
+          if (!item || typeof item !== "object" || Array.isArray(item)
+            || typeof item.remoteId !== "string" || !uuidPattern.test(item.remoteId)
+            || item.remoteId !== items[localId].remoteId
+            || typeof item.remoteUpdatedAt !== "string" || !Number.isFinite(Date.parse(item.remoteUpdatedAt))
+            || item.remoteUpdatedAt !== items[localId].remoteUpdatedAt
+            || item.dirty !== false || item.pendingDelete !== false) throw { code: "SAVE_VERIFICATION_FAILED" };
+        }
+        assertLocalUnchanged();
+        const summary = {
+          "映画件数": localMovies.length,
+          "同期メタデータ件数": Object.keys(saved.items).length,
+          "dirty": 0,
+          "pendingDelete": 0,
+        };
+        console.log("===== Supabase同期メタデータ 初期化 =====");
+        console.table(summary);
+        console.log("✅ 同期メタデータを初期化しました");
+        // メタデータ本体やユーザーIDは戻り値にも表示しない。
+        return { ok: true, summary };
+      } catch (error) {
+        const code = /^[A-Za-z0-9_]{1,64}$/.test(String(error?.code || "")) ? String(error.code) : "UNKNOWN_ERROR";
+        const reasons = {
+          LOCAL_STORAGE_UNAVAILABLE: "localStorageを読み取れませんでした",
+          METADATA_EXISTS: "既存の同期メタデータを保護するため中止しました",
+          AUTH_UNAVAILABLE: "ログインユーザーを取得できませんでした",
+          AUTH_USER_CHANGED: "処理中にログインユーザーが変わりました",
+          DIFF_CHECK_UNAVAILABLE: "既存の同期差分チェックを利用できませんでした",
+          SYNC_DIFF_FOUND: "同期差分チェックがOKではないため保存しませんでした",
+          INVALID_LOCAL_JSON: "保存JSONを読み取れませんでした",
+          INVALID_LOCAL_DATA: "保存JSONが作品配列ではありません",
+          INVALID_LOCAL_ID: "localStorage側のIDが不正です",
+          DUPLICATE_LOCAL_IDS: "localStorage側のIDが重複しています",
+          LOCAL_DATA_CHANGED: "処理中にlocalStorageの映画データが変更されました",
+          INVALID_LOOKUP_RESPONSE: "Supabaseの件数または一覧を取得できませんでした",
+          REMOTE_DATA_CHANGED: "処理中にSupabaseの件数または取得行が変わりました",
+          INCOMPLETE_LOOKUP: "Supabaseの全件を取得できませんでした",
+          REMOTE_USER_MISMATCH: "取得行のユーザーが一致しません",
+          INVALID_REMOTE_UUID: "Supabase側のUUIDが不正です",
+          INVALID_REMOTE_ID: "Supabase側のローカルIDが不正です",
+          DUPLICATE_REMOTE_IDS: "Supabase側のローカルIDが重複しています",
+          REMOTE_ID_SET_MISMATCH: "localStorageとSupabaseのID一覧が一致しません",
+          INVALID_REMOTE_UPDATED_AT: "Supabase側の更新日時が不正です",
+          METADATA_SAVE_FAILED: "同期メタデータを保存できませんでした。保存容量と利用設定を確認してください",
+          SAVE_VERIFICATION_FAILED: "保存後の同期メタデータを確認できませんでした。自動削除や修正は行っていません",
+          "42501": "RLSポリシーまたは読み取り権限を確認してください",
+          "42P01": "確認先テーブルが見つかりません",
+          "42703": "確認先の列が見つかりません",
+        };
+        const safeError = { code, message: reasons[code] || "初期化を完了できませんでした。通信環境と読み取り設定を確認してください" };
+        if (code === "METADATA_EXISTS") {
+          console.warn("⚠️ 同期メタデータはすでに存在します");
+        } else {
+          console.error("❌ 同期メタデータ初期化 中止", safeError);
+        }
+        return { ok: false, storageSaved, error: safeError };
+      } finally {
+        supabaseSyncMetadataInitializing = false;
+        scheduleAutoInitializeSupabaseSyncMetadata();
+      }
+    };
+    // END manual Supabase sync metadata initialization
+
+    // BEGIN automatic first restore for authenticated empty localStorage
+    let autoRestoreChecked = false;
+    let autoRestoreRunning = false;
+    let autoRestoreScheduled = false;
+    let autoRestoreReloaded = false;
+    let autoRestoreSessionUserId = null;
+    async function autoRestoreMoviesIfEmpty(userId) {
+      if (autoRestoreChecked || autoRestoreRunning || supabaseRestoreRunning
+        || !authenticated || !userId || autoRestoreSessionUserId !== userId) return;
+      autoRestoreChecked = true;
+      autoRestoreRunning = true;
+      try {
+        const readLocalMovies = () => {
+          let raw;
+          try {
+            raw = localStorage.getItem("movieLog_movies");
+          } catch (_) {
+            throw { code: "LOCAL_STORAGE_UNAVAILABLE" };
+          }
+          if (raw === null) return [];
+          let saved;
+          try {
+            saved = JSON.parse(raw);
+          } catch (_) {
+            throw { code: "INVALID_LOCAL_JSON" };
+          }
+          if (!Array.isArray(saved)) throw { code: "INVALID_LOCAL_DATA" };
+          return saved;
+        };
+        // 既存データがあれば、認証ユーザー確認や映画SELECTも行わない。
+        if (readLocalMovies().length > 0) return;
+        if (!client) throw { code: "AUTH_UNAVAILABLE" };
+        const { data: authData, error: authError } = await client.auth.getUser();
+        if (authError || !authData?.user?.id) throw { code: "AUTH_UNAVAILABLE" };
+        if (!authenticated || autoRestoreSessionUserId !== userId || authData.user.id !== userId) return;
+        // 0件の場合は、手動復元関数による空配列の保存も避ける。
+        const { count, error } = await client.schema("public").from("movie_logs")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", userId);
+        if (error) throw error;
+        if (!Number.isSafeInteger(count) || count < 0) throw { code: "INVALID_LOOKUP_RESPONSE" };
+        if (count === 0) return;
+        if (!authenticated || autoRestoreSessionUserId !== userId || supabaseRestoreRunning) return;
+        if (readLocalMovies().length > 0) return;
+        console.info("ℹ️ localStorageが空のためSupabaseから復元します");
+        const result = await window.restoreMoviesFromSupabase();
+        if (result?.ok !== true || !authenticated || autoRestoreSessionUserId !== userId) return;
+        const savedCount = result.summary?.["localStorage保存件数"];
+        if (!Number.isSafeInteger(savedCount) || savedCount <= 0) return;
+        if (readLocalMovies().length !== savedCount) throw { code: "SAVE_VERIFICATION_FAILED" };
+        if (autoRestoreReloaded) return;
+        autoRestoreReloaded = true;
+        console.log("✅ Supabaseから自動復元しました");
+        location.reload();
+      } catch (error) {
+        const code = /^[A-Za-z0-9_]{1,64}$/.test(String(error?.code || "")) ? String(error.code) : "UNKNOWN_ERROR";
+        const reasons = {
+          LOCAL_STORAGE_UNAVAILABLE: "localStorageを読み取れないため、自動復元を中止しました",
+          INVALID_LOCAL_JSON: "既存の保存JSONを読み取れないため、自動復元を中止しました",
+          INVALID_LOCAL_DATA: "既存の保存JSONが配列ではないため、自動復元を中止しました",
+          AUTH_UNAVAILABLE: "ログインユーザーを取得できないため、自動復元を中止しました",
+          INVALID_LOOKUP_RESPONSE: "Supabaseの件数を確認できないため、自動復元を中止しました",
+          SAVE_VERIFICATION_FAILED: "復元後の件数を確認できないため、再読み込みを中止しました",
+          "42501": "RLSポリシーまたは読み取り権限を確認してください",
+          "42P01": "確認先テーブルが見つかりません",
+          "42703": "確認先の列が見つかりません",
+        };
+        console.warn("⚠️ Supabase自動復元を中止しました", {
+          code, message: reasons[code] || "通信環境と読み取り設定を確認してください",
+        });
+      } finally {
+        autoRestoreRunning = false;
+        scheduleAutoInitializeSupabaseSyncMetadata();
+      }
+    }
+    // END automatic first restore for authenticated empty localStorage
+
+    // BEGIN automatic sync metadata initialization for matching local movies
+    let autoSyncMetadataRunning = false;
+    let autoSyncMetadataScheduled = false;
+    let autoSyncMetadataSessionVersion = 0;
+    const autoSyncMetadataCheckedUsers = new Set();
+    async function autoInitializeSupabaseSyncMetadataIfSafe(userId) {
+      const sessionVersion = autoSyncMetadataSessionVersion;
+      const isCurrentSession = () => authenticated === true
+        && typeof userId === "string" && Boolean(userId.trim()) && autoRestoreSessionUserId === userId
+        && autoSyncMetadataSessionVersion === sessionVersion;
+      if (!isCurrentSession() || autoSyncMetadataRunning || autoSyncMetadataCheckedUsers.has(userId)) return;
+      // 一時的な競合は確認済みにしない。妨げている処理の終了時に再予約する。
+      if (autoRestoreScheduled || autoRestoreRunning || supabaseRestoreRunning
+        || supabaseSyncMetadataInitializing || supabaseSyncDiffRunning) return;
+      let checked = false;
+      autoSyncMetadataRunning = true;
+      try {
+        const readStorage = (key) => {
+          try {
+            return localStorage.getItem(key);
+          } catch (_) {
+            throw { code: "LOCAL_STORAGE_UNAVAILABLE" };
+          }
+        };
+        // 不正JSONや空文字でも、メタデータの既存値は保護する。
+        if (readStorage("movieLog_sync_meta_v1") !== null) {
+          checked = true;
+          return;
+        }
+        const raw = readStorage("movieLog_movies");
+        let localMovies;
+        try {
+          localMovies = JSON.parse(raw ?? "[]");
+        } catch (_) {
+          throw { code: "INVALID_LOCAL_JSON" };
+        }
+        if (!Array.isArray(localMovies)) throw { code: "INVALID_LOCAL_DATA" };
+        // 空の端末はautoRestoreを優先し、この処理からは復元も保存も行わない。
+        if (localMovies.length === 0) {
+          checked = true;
+          return;
+        }
+        if (autoRestoreRunning || supabaseRestoreRunning || supabaseSyncMetadataInitializing || supabaseSyncDiffRunning) return;
+        if (!client || typeof window.checkSupabaseSyncDiff !== "function"
+          || typeof window.initializeSupabaseSyncMetadata !== "function") return;
+        const { data: authData, error: authError } = await client.auth.getUser();
+        if (authError || authData?.user?.id !== userId || !isCurrentSession()) return;
+        if (autoRestoreRunning || supabaseRestoreRunning || supabaseSyncMetadataInitializing || supabaseSyncDiffRunning) return;
+        if (readStorage("movieLog_sync_meta_v1") !== null) {
+          checked = true;
+          return;
+        }
+        if (readStorage("movieLog_movies") !== raw) throw { code: "LOCAL_DATA_CHANGED" };
+
+        const diffResult = await window.checkSupabaseSyncDiff();
+        if (!isCurrentSession() || autoRestoreRunning || supabaseRestoreRunning
+          || supabaseSyncMetadataInitializing || supabaseSyncDiffRunning) return;
+        if (diffResult?.ok !== true) {
+          checked = true;
+          console.info("ℹ️ 同期メタデータ自動初期化をスキップ：同期差分があります");
+          return;
+        }
+        // 差分確認中のユーザー切替や保存変更を、初期化の呼び出し直前にも検出する。
+        const { data: currentAuth, error: currentAuthError } = await client.auth.getUser();
+        if (currentAuthError || currentAuth?.user?.id !== userId || !isCurrentSession()) return;
+        if (autoRestoreRunning || supabaseRestoreRunning || supabaseSyncMetadataInitializing || supabaseSyncDiffRunning) return;
+        if (readStorage("movieLog_sync_meta_v1") !== null) {
+          checked = true;
+          return;
+        }
+        if (readStorage("movieLog_movies") !== raw) throw { code: "LOCAL_DATA_CHANGED" };
+        // 初期化関数自身の再照合・保存直前検証・保存後検証もそのまま利用する。
+        const result = await window.initializeSupabaseSyncMetadata();
+        if (!isCurrentSession()) return;
+        if (!autoRestoreRunning && !supabaseRestoreRunning && !supabaseSyncMetadataInitializing && !supabaseSyncDiffRunning) checked = true;
+        if (result?.ok === true && isCurrentSession()) {
+          console.log("✅ 同期メタデータを自動初期化しました");
+        } else if (result?.ok !== true) {
+          console.info("ℹ️ 同期メタデータ自動初期化を完了できませんでした（自動修正は行いません）");
+        }
+      } catch (error) {
+        const code = /^[A-Za-z0-9_]{1,64}$/.test(String(error?.code || "")) ? String(error.code) : "UNKNOWN_ERROR";
+        const reasons = {
+          LOCAL_STORAGE_UNAVAILABLE: "localStorageを読み取れないため初期化しません",
+          INVALID_LOCAL_JSON: "映画データのJSONが不正なため初期化しません",
+          INVALID_LOCAL_DATA: "映画データが正常な配列ではないため初期化しません",
+          LOCAL_DATA_CHANGED: "確認中に映画データが変わったため初期化しません",
+        };
+        console.warn("⚠️ 同期メタデータ自動初期化を中止しました", {
+          code, message: reasons[code] || "確認を完了できませんでした。保存データの自動修正は行いません",
+        });
+      } finally {
+        if (checked && isCurrentSession()) autoSyncMetadataCheckedUsers.add(userId);
+        autoSyncMetadataRunning = false;
+        // 認証状態が変わった場合だけ新しいセッションを予約し、同じ処理の再予約ループを避ける。
+        if (autoSyncMetadataSessionVersion !== sessionVersion) scheduleAutoInitializeSupabaseSyncMetadata();
+      }
+    }
+
+    function scheduleAutoInitializeSupabaseSyncMetadata() {
+      const userId = autoRestoreSessionUserId;
+      if (authenticated !== true || typeof userId !== "string" || !userId.trim()
+        || autoSyncMetadataCheckedUsers.has(userId) || autoSyncMetadataRunning || autoSyncMetadataScheduled) return;
+      if (autoRestoreScheduled || autoRestoreRunning || supabaseRestoreRunning
+        || supabaseSyncMetadataInitializing || supabaseSyncDiffRunning) return;
+      autoSyncMetadataScheduled = true;
+      setTimeout(() => {
+        autoSyncMetadataScheduled = false;
+        void autoInitializeSupabaseSyncMetadataIfSafe(autoRestoreSessionUserId);
+      }, 0);
+    }
+    // END automatic sync metadata initialization for matching local movies
+
+    function showMessage(text = "", kind = "error") {
+      message.textContent = text;
+      message.dataset.kind = kind;
+      message.hidden = !text;
+    }
+
+    function setMode(signup) {
+      signupMode = signup;
+      document.getElementById("authTitle").textContent = signup ? "新規アカウント作成" : "ログイン";
+      document.getElementById("authConfirmField").hidden = !signup;
+      confirmPassword.required = signup;
+      password.autocomplete = signup ? "new-password" : "current-password";
+      password.minLength = signup ? 6 : 1;
+      password.value = "";
+      confirmPassword.value = "";
+      submit.textContent = signup ? "アカウントを作成" : "ログイン";
+      switchButton.textContent = signup ? "ログインへ戻る" : "新規登録はこちら";
+      showMessage();
+    }
+
+    function setBusy(value) {
+      busy = value;
+      form.querySelectorAll("input, button").forEach((element) => { element.disabled = value; });
+      submit.textContent = value ? "処理中…" : signupMode ? "アカウントを作成" : "ログイン";
+    }
+
+    function applySession(session) {
+      const signedIn = Boolean(session?.user);
+      if (signedIn && !authenticated) {
+        showView("list");
+        password.value = "";
+        confirmPassword.value = "";
+        showMessage();
+      } else if (!signedIn && authenticated) {
+        setMode(false);
+        showView("list");
+      }
+      authenticated = signedIn;
+      document.documentElement.dataset.authState = signedIn ? "authenticated" : "guest";
+      document.getElementById("authLoading").hidden = true;
+      form.hidden = signedIn;
+      // BEGIN schedule initial restore after auth callback completes
+      const nextUserId = signedIn ? session.user.id : null;
+      if (!signedIn || autoRestoreSessionUserId !== nextUserId) {
+        autoSyncMetadataCheckedUsers.clear();
+        autoSyncMetadataSessionVersion += 1;
+      }
+      autoRestoreSessionUserId = nextUserId;
+      if (signedIn && !autoRestoreChecked && !autoRestoreRunning && !autoRestoreScheduled) {
+        autoRestoreScheduled = true;
+        setTimeout(() => {
+          autoRestoreScheduled = false;
+          void autoRestoreMoviesIfEmpty(autoRestoreSessionUserId);
+        }, 0);
+      }
+      // END schedule initial restore after auth callback completes
+      // BEGIN schedule metadata initialization after auth callback completes
+      if (signedIn) scheduleAutoInitializeSupabaseSyncMetadata();
+      // END schedule metadata initialization after auth callback completes
+    }
+
+    function errorText(error, signup) {
+      if (error?.code === "email_not_confirmed") return "メールアドレスの確認が完了していません。確認メール内のリンクを開いてください。";
+      if (error?.status === 429 || error?.code === "over_email_send_rate_limit" || error?.code === "over_request_rate_limit") return "しばらく待ってから、もう一度お試しください。";
+      if (error?.code === "weak_password") return "より強いパスワードを設定してください。";
+      if (error?.code === "user_already_exists" || error?.code === "email_exists") return "このメールアドレスは登録済みです。ログインをお試しください。";
+      if (!error?.status || error.status >= 500) return "接続できませんでした。通信環境を確認して、もう一度お試しください。";
+      return signup ? "登録できませんでした。メールアドレスとパスワードを確認してください。" : "メールアドレスまたはパスワードを確認してください。";
+    }
+
+    function emailRedirectUrl() {
+      // 許可済みのlocalhost以外は、設定済みの本番URLへ戻す。
+      return location.origin === "http://localhost:8000" ? "http://localhost:8000/" : siteUrl;
+    }
+
+    switchButton.addEventListener("click", () => {
+      if (!busy) setMode(!signupMode);
+    });
+    document.getElementById("authRetryBtn").addEventListener("click", () => location.reload());
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (busy || !client || !form.reportValidity()) return;
+      if (signupMode && password.value !== confirmPassword.value) {
+        showMessage("パスワードとパスワード確認が一致していません。");
+        confirmPassword.focus();
+        return;
+      }
+      const signup = signupMode;
+      const credentials = { email: email.value.trim(), password: password.value };
+      showMessage();
+      setBusy(true);
+      try {
+        if (signup) {
+          const { error } = await client.auth.signUp({
+            ...credentials,
+            options: { emailRedirectTo: emailRedirectUrl() },
+          });
+          if (error) throw error;
+          setMode(false);
+          showMessage("確認メールを送信しました。\nメール内のリンクを開いて登録を完了してください。", "success");
+        } else {
+          const { data, error } = await client.auth.signInWithPassword(credentials);
+          if (error) throw error;
+          applySession(data.session);
+        }
+      } catch (error) {
+        showMessage(errorText(error, signup));
+      } finally {
+        setBusy(false);
+      }
+    });
+
+    logout.addEventListener("click", async () => {
+      if (!client || logout.disabled) return;
+      logout.disabled = true;
+      logoutMessage.classList.add("hidden");
+      try {
+        const { error } = await client.auth.signOut({ scope: "local" });
+        if (error) throw error;
+        applySession(null);
+        showMessage("ログアウトしました。", "success");
+      } catch (error) {
+        if (!authenticated) {
+          // SDKが通信失敗時にもローカルセッションを終了した場合。
+          showMessage("このブラウザーからログアウトしました。通信環境を確認してください。");
+        } else {
+          logoutMessage.textContent = "ログアウトできませんでした。通信環境を確認して、もう一度お試しください。";
+          logoutMessage.classList.remove("hidden");
+        }
+      } finally {
+        logout.disabled = false;
+      }
+    });
+
+    async function initializeAuth() {
+      const returnError = new URLSearchParams(location.hash.slice(1)).has("error") || new URLSearchParams(location.search).has("error");
+      try {
+        if (!window.supabase?.createClient) throw new Error("Auth client unavailable");
+        client = window.supabase.createClient(projectUrl, publishableKey, {
+          auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
+        });
+        // コールバック内ではAuth APIを呼ばず、標準セッションを画面へ反映する。
+        client.auth.onAuthStateChange((_event, session) => applySession(session));
+        const { data, error } = await client.auth.getSession();
+        if (error) throw error;
+        applySession(data.session);
+        if (returnError && !data.session) showMessage("確認リンクを利用できませんでした。期限切れの場合は新しい確認メールのリンクを開いてください。");
+      } catch (error) {
+        applySession(null);
+        showMessage(returnError ? "確認リンクを利用できませんでした。メール内のリンクを確認してください。" : "ログイン状態を確認できませんでした。通信環境を確認して、もう一度お試しください。");
+        if (!client) setBusy(true);
+        document.getElementById("authRetryBtn").hidden = false;
+      }
+    }
+
+    initializeAuth();
   })();
 </script>
 </body>
