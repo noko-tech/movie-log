@@ -2344,7 +2344,8 @@ html:not([data-auth-state="authenticated"]) body { padding-bottom: 0 !important;
 
     <script>
       // ===================== データ管理 =====================
-      let movies = JSON.parse(localStorage.getItem("movieLog_movies")) || [];
+      // 表示用の正式データは、認証後にSupabaseから読み込む。
+      let movies = [];
       let currentStatus = "all";
       let searchQuery = "";
       let currentSort = "watchDateDesc";
@@ -3921,26 +3922,7 @@ html:not([data-auth-state="authenticated"]) body { padding-bottom: 0 !important;
           .replace(/'/g, "&#039;");
       }
 
-      // 起動時に既存データも新しい形式へ整える
-      movies = movies.map((movie) => ({
-        ...movie,
-        genre: getGenres(movie.genre)
-          .map((g) => normalizeGenreName(g))
-          .filter(Boolean)
-          .filter((g, i, arr) => arr.indexOf(g) === i)
-          .join(", "),
-        watchDate: normalizeWatchDate(movie.watchDate),
-        favorite: movie.favorite === true,
-        seriesName: movie.seriesName || "",
-        seriesOrder: movie.seriesOrder || "",
-        watchPlace: undefined,
-      }));
-
-      if (recalculateSeriesOrders()) {
-        localStorage.setItem("movieLog_movies", JSON.stringify(movies));
-      }
-
-      // 起動
+      // 操作欄だけ初期化する。映画データの正常化・公開順の保存は起動時に行わない。
       init();
     </script>
   
@@ -6436,6 +6418,117 @@ html:not([data-auth-state="authenticated"]) body { padding-bottom: 0 !important;
     };
     // END manual Supabase sync metadata initialization
 
+    // BEGIN authoritative Supabase movie list loading
+    let supabaseMovieLoadRequest = null;
+
+    function convertSupabaseMovieRowForDisplay(row) {
+      // 既存restore/previewと同じ変換規則。サーバーのシリーズ順・ジャンルは変更しない。
+      const movie = {};
+      const stringFields = {
+        mediaType: "media_type", title: "title", thumbnail: "poster_url", synopsis: "overview",
+        status: "status", genre: "genre", country: "country", director: "director",
+        writer: "writer", cast: "cast", watchDate: "watch_date", comment: "comment", seriesName: "series_name",
+      };
+      for (const [field, column] of Object.entries(stringFields)) {
+        if (row[column] !== null && typeof row[column] !== "string") throw { code: "INVALID_MOVIE_DATA" };
+        movie[field] = row[column] ?? "";
+      }
+      if (typeof row.legacy_local_id !== "string" || !row.legacy_local_id.trim() || !movie.title.trim()) throw { code: "INVALID_MOVIE_DATA" };
+      movie.id = row.legacy_local_id;
+      const createdTime = typeof row.created_at === "string" ? Date.parse(row.created_at) : NaN;
+      if (!Number.isFinite(createdTime)) throw { code: "INVALID_MOVIE_DATA" };
+      movie.createdAt = new Date(createdTime).toISOString();
+      for (const [field, column] of Object.entries({ year: "year", runtime: "runtime", seriesOrder: "series_order" })) {
+        const value = nullableMovieInteger(row[column], -32768, 32767);
+        if (row[column] !== null && value === null) throw { code: "INVALID_MOVIE_DATA" };
+        movie[field] = value === null ? "" : String(value);
+      }
+      const tmdbId = nullableMovieInteger(row.tmdb_id);
+      if (row.tmdb_id !== null && tmdbId === null) throw { code: "INVALID_MOVIE_DATA" };
+      if (tmdbId !== null) movie.tmdbId = tmdbId;
+      const rating = nullableMovieInteger(row.rating, 0, 5);
+      if (row.rating !== null && rating === null) throw { code: "INVALID_MOVIE_DATA" };
+      movie.rating = rating ?? 0;
+      if (row.favorite !== null && typeof row.favorite !== "boolean") throw { code: "INVALID_MOVIE_DATA" };
+      movie.favorite = row.favorite === true;
+      return movie;
+    }
+
+    async function fetchSupabaseMoviesForUser(userId, isCurrentRequest) {
+      if (!client || !isCurrentRequest()) throw { code: "AUTH_USER_CHANGED" };
+      const { data: authData, error: authError } = await client.auth.getUser();
+      if (authError || authData?.user?.id !== userId || !isCurrentRequest()) throw { code: "AUTH_USER_CHANGED" };
+      const columns = "id, user_id, legacy_local_id, created_at, tmdb_id, media_type, title, poster_url, overview, rating, favorite, status, genre, year, runtime, country, director, writer, cast, watch_date, comment, series_name, series_order, updated_at";
+      const loadedMovies = [];
+      const remoteIds = new Set();
+      const localIds = new Set();
+      let total = null;
+      let offset = 0;
+      do {
+        const { data, count, error } = await client.schema("public").from("movie_logs")
+          .select(columns, { count: "exact" })
+          .eq("user_id", userId)
+          .order("id", { ascending: true })
+          .range(offset, offset + 499);
+        if (!isCurrentRequest()) throw { code: "AUTH_USER_CHANGED" };
+        if (error) throw error;
+        if (!Array.isArray(data) || !Number.isSafeInteger(count) || count < 0) throw { code: "INVALID_LOOKUP_RESPONSE" };
+        if (total === null) total = count;
+        if (count !== total || offset + data.length > total) throw { code: "REMOTE_DATA_CHANGED" };
+        if (data.length === 0 && offset < total) throw { code: "INCOMPLETE_LOOKUP" };
+        for (const row of data) {
+          if (!row || typeof row !== "object" || Array.isArray(row) || row.user_id !== userId) throw { code: "REMOTE_USER_MISMATCH" };
+          validateMovieLogSyncRemoteReference(row.id, row.updated_at, false);
+          const movie = convertSupabaseMovieRowForDisplay(row);
+          const remoteId = row.id.toLowerCase();
+          if (remoteIds.has(remoteId) || localIds.has(movie.id)) throw { code: "DUPLICATE_MOVIE_ID" };
+          remoteIds.add(remoteId);
+          localIds.add(movie.id);
+          loadedMovies.push(movie);
+        }
+        offset += data.length;
+      } while (offset < total);
+      const { count: finalCount, error: finalError } = await client.schema("public").from("movie_logs")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", userId);
+      if (finalError) throw finalError;
+      if (finalCount !== total) throw { code: "REMOTE_DATA_CHANGED" };
+      const { data: currentAuth, error: currentAuthError } = await client.auth.getUser();
+      if (currentAuthError || currentAuth?.user?.id !== userId || !isCurrentRequest()) throw { code: "AUTH_USER_CHANGED" };
+      return loadedMovies;
+    }
+
+    async function loadSupabaseMoviesForSession(userId, request) {
+      const isCurrentRequest = () => authenticated === true && autoRestoreSessionUserId === userId
+        && autoSyncMetadataSessionVersion === request.sessionVersion && supabaseMovieLoadRequest === request;
+      if (!isCurrentRequest()) return;
+      try {
+        // 他タブのローカル保存が読込中に進んだ場合は、互換キャッシュを上書きしない。
+        const localRaw = localStorage.getItem("movieLog_movies");
+        const loadedMovies = await fetchSupabaseMoviesForUser(userId, isCurrentRequest);
+        if (!isCurrentRequest()) return;
+        if (localStorage.getItem("movieLog_movies") !== localRaw) throw { code: "LOCAL_DATA_CHANGED" };
+        // 保存経路はまだlocalStorageを利用するため、成功時だけ同じ内容を互換キャッシュへ保存。
+        localStorage.setItem("movieLog_movies", JSON.stringify(loadedMovies));
+        movies = loadedMovies;
+        request.ready = true;
+        populateYearFilter();
+        showView("list");
+        showMessage();
+        document.getElementById("authLoading").hidden = true;
+        document.getElementById("authRetryBtn").hidden = true;
+        document.documentElement.dataset.authState = "authenticated";
+        scheduleAutoInitializeSupabaseSyncMetadata();
+      } catch (_) {
+        if (!isCurrentRequest()) return;
+        // 旧キャッシュを正式データとして表示せず、既存の認証画面で再試行を案内する。
+        document.getElementById("authLoading").hidden = true;
+        showMessage("映画データを読み込めませんでした。通信環境とブラウザーの保存設定を確認し、再読み込みしてお試しください。");
+        document.getElementById("authRetryBtn").hidden = false;
+      }
+    }
+    // END authoritative Supabase movie list loading
+
     // BEGIN automatic first restore for authenticated empty localStorage
     let autoRestoreChecked = false;
     let autoRestoreRunning = false;
@@ -6611,6 +6704,9 @@ html:not([data-auth-state="authenticated"]) body { padding-bottom: 0 !important;
 
     function scheduleAutoInitializeSupabaseSyncMetadata() {
       const userId = autoRestoreSessionUserId;
+      // 正式データの読込前・失敗時には、旧キャッシュの照合や初期化を予約しない。
+      if (!supabaseMovieLoadRequest?.ready || supabaseMovieLoadRequest.userId !== userId
+        || supabaseMovieLoadRequest.sessionVersion !== autoSyncMetadataSessionVersion) return;
       if (authenticated !== true || typeof userId !== "string" || !userId.trim()
         || autoSyncMetadataCheckedUsers.has(userId) || autoSyncMetadataRunning || autoSyncMetadataScheduled) return;
       if (autoRestoreScheduled || autoRestoreRunning || supabaseRestoreRunning
@@ -6651,37 +6747,40 @@ html:not([data-auth-state="authenticated"]) body { padding-bottom: 0 !important;
 
     function applySession(session) {
       const signedIn = Boolean(session?.user);
-      if (signedIn && !authenticated) {
-        showView("list");
-        password.value = "";
-        confirmPassword.value = "";
-        showMessage();
-      } else if (!signedIn && authenticated) {
-        setMode(false);
-        showView("list");
-      }
-      authenticated = signedIn;
-      document.documentElement.dataset.authState = signedIn ? "authenticated" : "guest";
-      document.getElementById("authLoading").hidden = true;
-      form.hidden = signedIn;
-      // BEGIN schedule initial restore after auth callback completes
+      const wasAuthenticated = authenticated;
       const nextUserId = signedIn ? session.user.id : null;
       if (!signedIn || autoRestoreSessionUserId !== nextUserId) {
         autoSyncMetadataCheckedUsers.clear();
         autoSyncMetadataSessionVersion += 1;
+        supabaseMovieLoadRequest = null;
+        movies = [];
       }
+      authenticated = signedIn;
       autoRestoreSessionUserId = nextUserId;
-      if (signedIn && !autoRestoreChecked && !autoRestoreRunning && !autoRestoreScheduled) {
-        autoRestoreScheduled = true;
-        setTimeout(() => {
-          autoRestoreScheduled = false;
-          void autoRestoreMoviesIfEmpty(autoRestoreSessionUserId);
-        }, 0);
+      form.hidden = signedIn;
+      if (!signedIn) {
+        if (wasAuthenticated) setMode(false);
+        document.documentElement.dataset.authState = "guest";
+        document.getElementById("authLoading").hidden = true;
+        document.getElementById("authRetryBtn").hidden = true;
+        showView("list");
+        return;
       }
-      // END schedule initial restore after auth callback completes
-      // BEGIN schedule metadata initialization after auth callback completes
-      if (signedIn) scheduleAutoInitializeSupabaseSyncMetadata();
-      // END schedule metadata initialization after auth callback completes
+      // 同じユーザーのAuth通知が重なっても、読込やローカル保存を繰り返さない。
+      if (!supabaseMovieLoadRequest) {
+        password.value = "";
+        confirmPassword.value = "";
+        showMessage();
+        document.documentElement.dataset.authState = "loading";
+        document.getElementById("authLoading").textContent = "映画データを読み込んでいます…";
+        document.getElementById("authLoading").hidden = false;
+        document.getElementById("authRetryBtn").hidden = true;
+        showView("list");
+        const request = { userId: nextUserId, sessionVersion: autoSyncMetadataSessionVersion, ready: false };
+        supabaseMovieLoadRequest = request;
+        // Authコールバック内ではAPIを呼ばず、完了後に現在ユーザーの全件読込を開始する。
+        setTimeout(() => { void loadSupabaseMoviesForSession(nextUserId, request); }, 0);
+      }
     }
 
     function errorText(error, signup) {
