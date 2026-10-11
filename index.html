@@ -102,9 +102,11 @@
       /* 未選択の月入力は、PC/スマホとも独自の「年月を選択」を表示 */
       #watchDateInput.date-empty::-webkit-datetime-edit {
         color: transparent;
+        opacity: 0;
       }
       #watchDateInput.date-empty::-webkit-date-and-time-value {
         color: transparent;
+        opacity: 0;
       }
 
       /* Movie Log ヴィンテージ・シネマテーマ */
@@ -117,6 +119,19 @@
       .vintage-button:hover { background: #4b4943 !important; }
       .data-management-toggle { color: var(--muted); letter-spacing: .02em; }
       .data-management-toggle:hover { color: var(--ink); }
+
+      /* 詳細検索の監督・出演者だけを個別クリア */
+      .detail-person-input { position: relative; }
+      #detailSearchPanel .detail-person-input > input { padding-right: 2.75rem; }
+      .detail-person-clear {
+        position: absolute; right: .375rem; top: 50%; transform: translateY(-50%);
+        display: flex; align-items: center; justify-content: center;
+        width: 2rem; height: 2rem; padding: 0; border: 0; background: transparent;
+        color: var(--muted); font-family: inherit; font-size: 1.25rem; line-height: 1; cursor: pointer;
+      }
+      .detail-person-input > input:placeholder-shown + .detail-person-clear { display: none; }
+      .detail-person-clear:hover { color: var(--ink); }
+      .detail-person-clear:focus-visible { outline: 2px solid var(--line); outline-offset: -2px; border-radius: .25rem; }
       .data-management-panel { border-top: 1px solid var(--line); }
       #listView > section { border-top: 1px solid #bfb3a0; }
       #listView > section > * { max-width: 1440px; margin-left: auto; margin-right: auto; }
@@ -1183,6 +1198,18 @@
           grid-column: 1 / -1 !important;
           grid-row: 3 !important;
         }
+        #listView #sortSelect + .movie-select-button,
+        #listView #genreFilter + .movie-select-button {
+          height: 48px;
+          min-height: 48px;
+        }
+        #listView #sortSelect + .movie-select-button > .movie-select-label,
+        #listView #genreFilter + .movie-select-button > .movie-select-label {
+          min-width: 0;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
       }
 
 
@@ -1338,6 +1365,7 @@
 
         /* 詳細：下側にも共通ストライプを配置 */
         #detailView { display: flex; flex-direction: column; min-height: 100vh; }
+        body:has(#detailView:not(.hidden)) { padding-bottom: 0 !important; }
         #detailView.hidden { display: none !important; }
         #detailView #detailContent { width: 100%; flex: 0 0 auto; }
         #detailView .detail-mobile-footer {
@@ -1723,7 +1751,7 @@ html:not([data-auth-state="authenticated"]) body { padding-bottom: 0 !important;
         <header class="auth-heading"><h1>Movie Log</h1></header>
         <div class="auth-body">
           <p id="authLoading" role="status">ログイン状態を確認しています…</p>
-          <form id="authForm" hidden>
+          <form id="authForm" hidden novalidate>
             <h2 id="authTitle">ログイン</h2>
             <label for="authEmail">メールアドレス</label>
             <input id="authEmail" type="email" autocomplete="email" required />
@@ -1809,6 +1837,7 @@ html:not([data-auth-state="authenticated"]) body { padding-bottom: 0 !important;
             id="sortSelect"
             class="border border-gray-300 rounded-xl px-3 py-2.5 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-slate-400 vintage-control"
           >
+            <option value="createdAtAsc">登録が新しい順</option>
             <option value="ratingDesc">評価が高い順</option>
             <option value="ratingAsc">評価が低い順</option>
             <option value="watchDateDesc">視聴日が新しい順</option>
@@ -1816,7 +1845,8 @@ html:not([data-auth-state="authenticated"]) body { padding-bottom: 0 !important;
             <option value="yearDesc">公開年が新しい順</option>
             <option value="yearAsc">公開年が古い順</option>
             <option value="titleAsc">タイトル順</option>
-            <option value="seriesAsc">シリーズまとめ</option>
+            <option value="sortSeparator" disabled>────────</option>
+            <option value="seriesAsc">シリーズごとにまとめる</option>
           </select>
 
           <select
@@ -1879,13 +1909,19 @@ html:not([data-auth-state="authenticated"]) body { padding-bottom: 0 !important;
 
             <div class="mt-4 relative">
               <label for="directorFilter" class="block text-sm font-semibold text-slate-700 mb-2">監督</label>
-              <input id="directorFilter" type="text" autocomplete="off" placeholder="監督名を入力" class="w-full border border-gray-300 rounded-xl px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-slate-400" />
+              <div class="detail-person-input">
+                <input id="directorFilter" type="text" autocomplete="off" placeholder="監督名を入力" class="w-full border border-gray-300 rounded-xl px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-slate-400" />
+                <button id="clearDirectorFilterBtn" type="button" class="detail-person-clear" aria-label="監督の検索条件をクリア">×</button>
+              </div>
               <div id="directorSuggestions" class="hidden absolute left-0 right-0 top-full mt-1 z-40 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden"></div>
             </div>
 
             <div class="mt-4 relative">
               <label for="castFilter" class="block text-sm font-semibold text-slate-700 mb-2">出演者</label>
-              <input id="castFilter" type="text" autocomplete="off" placeholder="出演者名を入力" class="w-full border border-gray-300 rounded-xl px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-slate-400" />
+              <div class="detail-person-input">
+                <input id="castFilter" type="text" autocomplete="off" placeholder="出演者名を入力" class="w-full border border-gray-300 rounded-xl px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-slate-400" />
+                <button id="clearCastFilterBtn" type="button" class="detail-person-clear" aria-label="出演者の検索条件をクリア">×</button>
+              </div>
               <div id="castSuggestions" class="hidden absolute left-0 right-0 top-full mt-1 z-40 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden"></div>
             </div>
 
@@ -2568,6 +2604,18 @@ html:not([data-auth-state="authenticated"]) body { padding-bottom: 0 !important;
 
         setupAutocomplete("directorFilter", "directorSuggestions", "director");
         setupAutocomplete("castFilter", "castSuggestions", "cast");
+        [
+          ["directorFilter", "clearDirectorFilterBtn", "directorSuggestions", "director"],
+          ["castFilter", "clearCastFilterBtn", "castSuggestions", "cast"],
+        ].forEach(([inputId, buttonId, suggestionsId, type]) => {
+          document.getElementById(buttonId).addEventListener("click", () => {
+            document.getElementById(inputId).value = "";
+            if (type === "director") currentDirectorFilter = "";
+            if (type === "cast") currentCastFilter = "";
+            document.getElementById(suggestionsId).classList.add("hidden");
+            renderList();
+          });
+        });
         setupSeriesAutocomplete();
         document.getElementById("yearInput").addEventListener("change", updateReleaseOrderInput);
 
@@ -2836,7 +2884,22 @@ html:not([data-auth-state="authenticated"]) body { padding-bottom: 0 !important;
 
         // 並び替え
         filtered.sort((a, b) => {
+          if (currentSort === "ratingDesc" || currentSort === "ratingAsc"
+            || currentSort === "watchDateDesc" || currentSort === "watchDateAsc") {
+            const aUnwatched = a.status === "unwatched" || !a.status;
+            const bUnwatched = b.status === "unwatched" || !b.status;
+            if (aUnwatched && bUnwatched) return (a.title || "").localeCompare(b.title || "", "ja");
+            if (aUnwatched) return 1;
+            if (bUnwatched) return -1;
+          }
           switch (currentSort) {
+            case "createdAtAsc": {
+              const aTime = typeof a.createdAt === "string" ? Date.parse(a.createdAt) : NaN;
+              const bTime = typeof b.createdAt === "string" ? Date.parse(b.createdAt) : NaN;
+              if (!Number.isFinite(aTime)) return Number.isFinite(bTime) ? 1 : 0;
+              if (!Number.isFinite(bTime)) return -1;
+              return bTime - aTime;
+            }
             case "ratingDesc":
               return (b.rating || 0) - (a.rating || 0);
             case "ratingAsc":
@@ -2845,10 +2908,20 @@ html:not([data-auth-state="authenticated"]) body { padding-bottom: 0 !important;
               return (b.watchDate || "").localeCompare(a.watchDate || "");
             case "watchDateAsc":
               return (a.watchDate || "").localeCompare(b.watchDate || "");
-            case "yearDesc":
-              return (b.year || "").localeCompare(a.year || "");
-            case "yearAsc":
-              return (a.year || "").localeCompare(b.year || "");
+            case "yearDesc": {
+              const aYear = getReleaseYear(a);
+              const bYear = getReleaseYear(b);
+              if (aYear === null) return bYear === null ? (a.title || "").localeCompare(b.title || "", "ja") : 1;
+              if (bYear === null) return -1;
+              return bYear - aYear;
+            }
+            case "yearAsc": {
+              const aYear = getReleaseYear(a);
+              const bYear = getReleaseYear(b);
+              if (aYear === null) return bYear === null ? (a.title || "").localeCompare(b.title || "", "ja") : 1;
+              if (bYear === null) return -1;
+              return aYear - bYear;
+            }
             case "titleAsc":
               return (a.title || "").localeCompare(b.title || "", "ja");
             case "seriesAsc": {
@@ -3273,14 +3346,6 @@ html:not([data-auth-state="authenticated"]) body { padding-bottom: 0 !important;
         movies[index].favorite = movies[index].favorite !== true;
         localStorage.setItem("movieLog_movies", JSON.stringify(movies));
         openDetail(id);
-        const savedMovie = movies.find((movie) => movie.id === id);
-        if (savedMovie) {
-          if (updateMovieInSupabase) {
-            void updateMovieInSupabase({ ...savedMovie });
-          } else {
-            console.warn("⚠️ Supabase更新をスキップ：ログインユーザーを取得できませんでした");
-          }
-        }
       }
 
       function updateStatusCounts() {
@@ -3680,7 +3745,7 @@ html:not([data-auth-state="authenticated"]) body { padding-bottom: 0 !important;
           const genreNames = (detail.genres || [])
             .map((g) => mapTmdbGenre(g.id, g.name, mediaType))
             .filter(Boolean);
-          selectedGenres = [...new Set(genreNames)].slice(0, 2);
+          selectedGenres = [...new Set(genreNames)];
           document.getElementById("genreInput").value = selectedGenres.join(", ");
           updateGenreButtons();
 
@@ -3950,21 +4015,51 @@ html:not([data-auth-state="authenticated"]) body { padding-bottom: 0 !important;
       };
     }
 
-    saveNewMovieToSupabase = async function (movie) {
+    // INSERT処理のPromiseを参照するためだけのMap。保存や直列化は行わない。
+    const newMovieInsertQueue = new Map();
+
+    function getPendingNewMovieInsert(localId) {
+      try {
+        const id = normalizeMovieLogSyncLocalId(localId);
+        return newMovieInsertQueue.get(id)?.promise ?? null;
+      } catch (_) {
+        return null;
+      }
+    }
+
+    async function runNewMovieInsert(movie) {
+      let localId;
+      let movieSnapshot;
+      try {
+        localId = normalizeMovieLogSyncLocalId(movie?.id);
+        // 最初のawaitより前にコピーし、通信中の変更で送信内容が変わらないようにする。
+        movieSnapshot = JSON.parse(JSON.stringify(movie));
+      } catch (_) {
+        console.error("❌ Supabase新規保存中止：新規作品の保存済みデータを確認できませんでした");
+        return;
+      }
+      const initiatingUserId = authenticated === true ? autoRestoreSessionUserId : null;
+      // 映画のローカル保存成功後、認証通信より先に未同期itemとdirtyを永続化する。
+      try {
+        if (authenticated !== true || typeof initiatingUserId !== "string" || !initiatingUserId.trim()) throw { code: "AUTH_USER_CHANGED" };
+        markMovieSyncDirty(localId, initiatingUserId);
+      } catch (error) {
+        const code = /^[A-Za-z0-9_]{1,64}$/.test(String(error?.code || "")) ? String(error.code) : "UNKNOWN_ERROR";
+        console.error("❌ 同期メタデータdirty設定 失敗", {
+          code,
+          message: "dirty設定を確認できないためINSERTは開始しません。ローカルデータは維持しています",
+        });
+        return;
+      }
       let stage = "ログイン確認";
       try {
-        if (!client) {
-          console.warn("⚠️ Supabase保存をスキップ：ログインユーザーを取得できませんでした");
-          return;
-        }
+        if (!client) throw { code: "AUTH_USER_CHANGED" };
         const { data: authData, error: authError } = await client.auth.getUser();
-        if (authError || !authData?.user?.id) {
-          console.warn("⚠️ Supabase保存をスキップ：ログインユーザーを取得できませんでした");
-          return;
-        }
+        if (authError || authData?.user?.id !== initiatingUserId
+          || !authenticated || autoRestoreSessionUserId !== initiatingUserId) throw { code: "AUTH_USER_CHANGED" };
+        const userId = authData.user.id;
         stage = "データ準備";
-        if (movie.id === undefined || movie.id === null || movie.id === "") throw { code: "INVALID_LOCAL_ID" };
-        const payload = buildSupabaseMoviePayload(movie, authData.user.id);
+        const payload = Object.freeze(buildSupabaseMoviePayload(movieSnapshot, userId));
         stage = "重複確認";
         const { data: existing, error: selectError } = await client.schema("public").from("movie_logs")
           .select("id")
@@ -3974,13 +4069,73 @@ html:not([data-auth-state="authenticated"]) body { padding-bottom: 0 !important;
         if (selectError) throw selectError;
         if (!Array.isArray(existing)) throw { code: "INVALID_LOOKUP_RESPONSE" };
         if (existing.length) {
-          console.info("ℹ️ Supabase保存済みのためINSERTをスキップ");
+          console.info("ℹ️ Supabase保存済みのためINSERTをスキップ（dirtyを維持）");
           return;
         }
+        // 重複確認の待機中にログアウト・ユーザー切替があった場合も送信しない。
+        if (!authenticated || autoRestoreSessionUserId !== userId) throw { code: "AUTH_USER_CHANGED" };
         stage = "INSERT";
-        const { error: insertError } = await client.schema("public").from("movie_logs").insert(payload);
+        const { data: inserted, error: insertError } = await client.schema("public").from("movie_logs")
+          .insert(payload)
+          .select("id, user_id, legacy_local_id, updated_at");
         if (insertError) throw insertError;
+        if (!Array.isArray(inserted) || inserted.length !== 1 || !inserted[0]
+          || inserted[0].user_id !== userId || inserted[0].legacy_local_id !== localId) throw { code: "INSERT_ROW_MISMATCH" };
+        const insertedRow = inserted[0];
+        validateMovieLogSyncRemoteReference(insertedRow.id, insertedRow.updated_at, false);
         console.log("✅ Supabase新規保存 成功");
+
+        stage = "同期メタデータ成功反映";
+        const { data: currentAuth, error: currentAuthError } = await client.auth.getUser();
+        if (currentAuthError || currentAuth?.user?.id !== userId
+          || !authenticated || autoRestoreSessionUserId !== userId) throw { code: "AUTH_USER_CHANGED" };
+        let localRaw;
+        try {
+          localRaw = localStorage.getItem("movieLog_movies");
+        } catch (_) {
+          throw { code: "LOCAL_STORAGE_UNAVAILABLE" };
+        }
+        let currentMovies;
+        try {
+          currentMovies = JSON.parse(localRaw);
+        } catch (_) {
+          throw { code: "INVALID_LOCAL_DATA" };
+        }
+        if (!Array.isArray(currentMovies)) throw { code: "INVALID_LOCAL_DATA" };
+        const matches = currentMovies.filter((current) => current && typeof current === "object" && !Array.isArray(current)
+          && ((typeof current.id === "string" && current.id.trim())
+            || (typeof current.id === "number" && Number.isSafeInteger(current.id)))
+          && String(current.id) === localId);
+        if (matches.length !== 1) {
+          console.warn("⚠️ 現在の新規作品を一意に確認できないためdirtyを維持します");
+          return;
+        }
+        const currentPayload = buildSupabaseMoviePayload(matches[0], userId);
+        const unchanged = Object.keys(payload).every((field) => {
+          if (field === "created_at" && payload[field] !== null && currentPayload[field] !== null) {
+            if (typeof payload[field] !== "string" || typeof currentPayload[field] !== "string") return false;
+            const sentTime = Date.parse(payload[field]);
+            const currentTime = Date.parse(currentPayload[field]);
+            return Number.isFinite(sentTime) && Number.isFinite(currentTime) && sentTime === currentTime;
+          }
+          return payload[field] === currentPayload[field];
+        });
+        if (!unchanged) {
+          console.info("ℹ️ ローカル内容が変更されているためdirtyを維持します");
+          return;
+        }
+        const metadata = readMovieLogSyncMetadata(userId);
+        if (!Object.prototype.hasOwnProperty.call(metadata.items, localId)
+          || metadata.items[localId].dirty !== true || metadata.items[localId].pendingDelete !== false) {
+          console.warn("⚠️ 同期メタデータの状態が変わったため成功反映を中止します");
+          return;
+        }
+        // 最後のawait後に比較し、成功反映まで非同期処理を挟まない。
+        if (localStorage.getItem("movieLog_movies") !== localRaw) {
+          console.info("ℹ️ ローカル保存内容が変わったためdirtyを維持します");
+          return;
+        }
+        markMovieSyncRemoteSuccess(localId, userId, insertedRow.id, insertedRow.updated_at);
       } catch (error) {
         if (stage === "ログイン確認") {
           console.warn("⚠️ Supabase保存をスキップ：ログインユーザーを取得できませんでした");
@@ -3993,14 +4148,37 @@ html:not([data-auth-state="authenticated"]) body { padding-bottom: 0 !important;
           "42703": "保存先の列が見つかりません",
           "23503": "外部キー制約を確認してください",
           "23505": "保存済みデータと重複しています",
-          INVALID_LOCAL_ID: "新規作品のローカルIDを確認できませんでした",
+          AUTH_USER_CHANGED: "ログインユーザーが変わったため処理を中止しました",
           INVALID_LOOKUP_RESPONSE: "重複確認の結果を取得できませんでした",
+          INSERT_ROW_MISMATCH: "対象の1件を保存できたことを確認できませんでした",
+          LOCAL_STORAGE_UNAVAILABLE: "現在のローカル映画データを読み取れませんでした",
+          INVALID_LOCAL_DATA: "現在のローカル映画データが正常な配列ではありません",
+          SYNC_META_INVALID_REMOTE_ID: "Supabaseから取得したUUIDを確認できませんでした",
+          SYNC_META_INVALID_REMOTE_TIME: "Supabaseから取得した更新日時を確認できませんでした",
         };
-        console.error("❌ Supabase新規保存 失敗", {
+        console.error(stage.startsWith("同期メタデータ") ? "❌ 同期メタデータ更新 失敗" : "❌ Supabase新規保存 失敗", {
           code,
-          message: reasons[code] || `${stage}に失敗しました。通信環境と保存先の設定を確認してください`,
+          message: reasons[code] || `${stage}に失敗しました。ローカルデータは元に戻していません`,
         });
       }
+    }
+
+    saveNewMovieToSupabase = function (movie) {
+      let localId;
+      try {
+        localId = normalizeMovieLogSyncLocalId(movie?.id);
+      } catch (_) {
+        // ID不正時も既存処理の安全なエラー報告をそのまま利用する。
+        return runNewMovieInsert(movie);
+      }
+      const entry = { promise: null };
+      // 既存処理は直ちに開始する。dirty設定を遅らせるawaitやqueue待機は挟まない。
+      entry.promise = runNewMovieInsert(movie).finally(() => {
+        // 後から同じIDに登録されたentryを、先行処理の終了で消さない。
+        if (newMovieInsertQueue.get(localId) === entry) newMovieInsertQueue.delete(localId);
+      });
+      newMovieInsertQueue.set(localId, entry);
+      return entry.promise;
     };
     // END new movie Supabase insert
 
@@ -6372,11 +6550,8 @@ html:not([data-auth-state="authenticated"]) body { padding-bottom: 0 !important;
           throw { code: "INVALID_LOCAL_JSON" };
         }
         if (!Array.isArray(localMovies)) throw { code: "INVALID_LOCAL_DATA" };
-        // 空の端末はautoRestoreを優先し、この処理からは復元も保存も行わない。
-        if (localMovies.length === 0) {
-          checked = true;
-          return;
-        }
+        // autoRestore終了後、0件でも差分確認へ進む。
+        // 両側0件なら空メタデータを初期化し、Supabase側だけに作品があれば停止する。
         if (autoRestoreRunning || supabaseRestoreRunning || supabaseSyncMetadataInitializing || supabaseSyncDiffRunning) return;
         if (!client || typeof window.checkSupabaseSyncDiff !== "function"
           || typeof window.initializeSupabaseSyncMetadata !== "function") return;
@@ -6515,7 +6690,7 @@ html:not([data-auth-state="authenticated"]) body { padding-bottom: 0 !important;
       if (error?.code === "weak_password") return "より強いパスワードを設定してください。";
       if (error?.code === "user_already_exists" || error?.code === "email_exists") return "このメールアドレスは登録済みです。ログインをお試しください。";
       if (!error?.status || error.status >= 500) return "接続できませんでした。通信環境を確認して、もう一度お試しください。";
-      return signup ? "登録できませんでした。メールアドレスとパスワードを確認してください。" : "メールアドレスまたはパスワードを確認してください。";
+      return signup ? "登録できませんでした。メールアドレスとパスワードを確認してください。" : "メールアドレスまたはパスワードが正しくありません。";
     }
 
     function emailRedirectUrl() {
@@ -6530,7 +6705,27 @@ html:not([data-auth-state="authenticated"]) body { padding-bottom: 0 !important;
 
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
-      if (busy || !client || !form.reportValidity()) return;
+      if (busy || !client) return;
+      if (!email.value.trim()) {
+        showMessage("メールアドレスを入力してください。");
+        email.focus();
+        return;
+      }
+      if (email.validity.typeMismatch) {
+        showMessage("メールアドレスの形式を確認してください。");
+        email.focus();
+        return;
+      }
+      if (!password.value) {
+        showMessage("パスワードを入力してください。");
+        password.focus();
+        return;
+      }
+      if (signupMode && password.value.length < password.minLength) {
+        showMessage("パスワードは6文字以上で入力してください。");
+        password.focus();
+        return;
+      }
       if (signupMode && password.value !== confirmPassword.value) {
         showMessage("パスワードとパスワード確認が一致していません。");
         confirmPassword.focus();
@@ -6540,6 +6735,7 @@ html:not([data-auth-state="authenticated"]) body { padding-bottom: 0 !important;
       const credentials = { email: email.value.trim(), password: password.value };
       showMessage();
       setBusy(true);
+      let failedInput = null;
       try {
         if (signup) {
           const { error } = await client.auth.signUp({
@@ -6556,8 +6752,10 @@ html:not([data-auth-state="authenticated"]) body { padding-bottom: 0 !important;
         }
       } catch (error) {
         showMessage(errorText(error, signup));
+        failedInput = error?.code === "user_already_exists" || error?.code === "email_exists" ? email : password;
       } finally {
         setBusy(false);
+        if (failedInput) failedInput.focus();
       }
     });
 
