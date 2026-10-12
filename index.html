@@ -2372,6 +2372,9 @@ html:not([data-auth-state="authenticated"]) body { padding-bottom: 0 !important;
       let movieEditSession = null;
       let movieEditOpenRequest = 0;
       const movieEditSavingIds = new Set();
+      let restoreBackupInSupabase = null;
+      let getBackupRestoreSession = null;
+      let backupRestoreRunning = false;
 
       // TMDbはSupabase Edge Function経由で取得
       const TMDB_FUNCTION_URL =
@@ -3624,41 +3627,78 @@ html:not([data-auth-state="authenticated"]) body { padding-bottom: 0 !important;
         URL.revokeObjectURL(url);
       }
 
+      function prepareBackupMoviesForRestore(backup) {
+        if (!backup || typeof backup !== "object" || Array.isArray(backup)
+          || backup.app !== "Movie Log" || backup.version !== 1 || !Array.isArray(backup.movies)) {
+          throw new Error("対応するMovie Logのバックアップファイルを選択してください。");
+        }
+        if (!backup.movies.length) throw new Error("作品が0件のバックアップは安全のため復元できません。");
+        const ids = new Set();
+        const numberPattern = /^[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)([eE][+-]?[0-9]+)?$/;
+        return backup.movies.map((source, index) => {
+          const fail = (field) => { throw new Error(`バックアップの${index + 1}作品目の${field}を確認してください。`); };
+          if (!source || typeof source !== "object" || Array.isArray(source)) fail("データ形式");
+          if (!(typeof source.id === "string" && source.id.trim()) && !Number.isSafeInteger(source.id)) fail("ID");
+          const id = String(source.id);
+          if (ids.has(id)) fail("IDの重複");
+          ids.add(id);
+          if (typeof source.title !== "string" || !source.title.trim()) fail("タイトル");
+          if (typeof source.createdAt !== "string"
+            || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}([.]\d{1,6})?(Z|[+-]\d{2}:\d{2})$/.test(source.createdAt)
+            || !Number.isFinite(Date.parse(source.createdAt))) fail("登録日時");
+          if (typeof source.favorite !== "boolean") fail("お気に入り");
+          if (typeof source.status !== "string" || !source.status.trim()) fail("視聴状況");
+          // 権限・UUID等の追加プロパティは引き継がず、映画項目だけをコピーする。
+          const movie = { id, title: source.title, createdAt: source.createdAt, favorite: source.favorite, status: source.status };
+          for (const field of ["mediaType", "thumbnail", "synopsis", "genre", "country", "director", "writer", "cast", "watchDate", "comment", "seriesName"]) {
+            if (source[field] != null && typeof source[field] !== "string") fail(field);
+            movie[field] = source[field] ?? "";
+          }
+          for (const field of ["rating", "year", "runtime", "tmdbId", "seriesOrder"]) {
+            const value = source[field];
+            if (value == null || (typeof value === "string" && !value.trim())) {
+              if (field === "rating") fail("評価");
+              movie[field] = field === "tmdbId" ? null : "";
+              continue;
+            }
+            if ((typeof value !== "string" && typeof value !== "number") || !numberPattern.test(String(value).trim())) fail(field);
+            const number = Number(value);
+            const min = field === "rating" ? 0 : field === "tmdbId" ? Number.MIN_SAFE_INTEGER : -32768;
+            const max = field === "rating" ? 5 : field === "tmdbId" ? Number.MAX_SAFE_INTEGER : 32767;
+            if (!Number.isSafeInteger(number) || number < min || number > max) fail(field);
+            // 文字列はそのままSQL検証へ渡し、丸めによる不正値の補完をしない。
+            movie[field] = typeof value === "string" ? value.trim() : value;
+          }
+          movie.genre = getGenres(movie.genre).map((genre) => normalizeGenreName(genre)).filter(Boolean)
+            .filter((genre, index, values) => values.indexOf(genre) === index).join(", ");
+          movie.watchDate = normalizeWatchDate(movie.watchDate);
+          if (movie.watchDate && !/^\d{4}-(0[1-9]|1[0-2])$/.test(movie.watchDate)) fail("視聴日");
+          return movie;
+        });
+      }
+
       async function restoreBackup(event) {
         const file = event.target.files && event.target.files[0];
-        if (!file) return;
+        if (!file || backupRestoreRunning) return;
+        const button = document.getElementById("backupRestoreBtn");
+        const wasDisabled = button.disabled;
+        const initiatingSession = getBackupRestoreSession?.();
+        backupRestoreRunning = true;
+        button.disabled = true;
         try {
-          const text = await file.text();
-          const backup = JSON.parse(text);
-          if (!backup || backup.app !== "Movie Log" || !Array.isArray(backup.movies)) {
-            alert("Movie Logのバックアップファイルを選択してください");
-            return;
-          }
-          const ok = confirm(
-            `バックアップの${backup.movies.length}作品に復元します。\n現在の${movies.length}作品はバックアップの内容に置き換わります。よろしいですか？`,
-          );
-          if (!ok) return;
-          movies = backup.movies.map((movie) => ({
-            ...movie,
-            genre: getGenres(movie.genre)
-              .map((g) => normalizeGenreName(g))
-              .filter(Boolean)
-              .filter((g, i, arr) => arr.indexOf(g) === i)
-              .join(", "),
-            watchDate: normalizeWatchDate(movie.watchDate),
-            favorite: movie.favorite === true,
-            seriesName: movie.seriesName || "",
-            seriesOrder: movie.seriesOrder || "",
-            watchPlace: undefined,
-          }));
-          recalculateSeriesOrders();
-          localStorage.setItem("movieLog_movies", JSON.stringify(movies));
-          populateYearFilter();
-          renderList();
-          alert(`${movies.length}作品を復元しました`);
+          let text;
+          try { text = await file.text(); } catch (_) { throw new Error("バックアップファイルを読み込めませんでした。"); }
+          let backup;
+          try { backup = JSON.parse(text); } catch (_) { throw new Error("バックアップのJSONを読み込めませんでした。"); }
+          const preparedMovies = prepareBackupMoviesForRestore(backup);
+          if (!restoreBackupInSupabase) throw new Error("ログイン状態を確認してから復元してください。");
+          const result = await restoreBackupInSupabase(preparedMovies, initiatingSession);
+          if (result?.notify !== false && result?.message) alert(result.message);
         } catch (error) {
-          alert("バックアップファイルを読み込めませんでした");
+          alert(error instanceof Error ? error.message : "バックアップファイルを読み込めませんでした。");
         } finally {
+          backupRestoreRunning = false;
+          button.disabled = wasDisabled;
           event.target.value = "";
         }
       }
@@ -4746,6 +4786,208 @@ html:not([data-auth-state="authenticated"]) body { padding-bottom: 0 !important;
       return task;
     };
     // END deleted movie Supabase RPC
+
+    // BEGIN JSON backup Supabase restore (explicit complete replacement only)
+    let backupRestoreOperation = null;
+
+    getBackupRestoreSession = () => ({
+      userId: authenticated === true ? autoRestoreSessionUserId : null,
+      sessionVersion: autoSyncMetadataSessionVersion,
+    });
+
+    function validateBackupRestoreRpcResult(result, count) {
+      if (!result || typeof result !== "object" || Array.isArray(result) || result.status !== "restored"
+        || result.backup_count !== count || result.final_count !== count
+        || !["backup_count", "inserted_count", "updated_count", "deleted_count", "series_reordered_count", "final_count"]
+          .every((field) => Number.isSafeInteger(result[field]) && result[field] >= 0)
+        || result.inserted_count + result.updated_count !== count || result.series_reordered_count > count) {
+        throw { code: "INVALID_BACKUP_RESTORE_RESULT" };
+      }
+    }
+
+    async function fetchBackupRestoreSnapshot(userId, isCurrentRequest, expectedMovies) {
+      // 通常の全件取得・変換を再利用する。既存の戻り値や他の読込経路は変更しない。
+      const displayed = await fetchSupabaseMoviesForUser(userId, isCurrentRequest);
+      const expected = new Map(expectedMovies.map((movie) => [movie.id, movie]));
+      if (displayed.length !== expected.size) throw { code: "BACKUP_RESTORE_MISMATCH" };
+      const displayedById = new Map(displayed.map((movie) => [movie.id, movie]));
+      if (displayedById.size !== expected.size) throw { code: "BACKUP_RESTORE_MISMATCH" };
+      for (const movie of displayed) {
+        const original = expected.get(movie.id);
+        if (!original || !newMoviePayloadMatches(buildSupabaseMoviePayload(original, userId),
+          buildSupabaseMoviePayload(movie, userId), true)) throw { code: "BACKUP_RESTORE_MISMATCH" };
+      }
+
+      // 参照情報付きの本人全件を追加取得し、同じ行から本文とメタデータを作る。
+      const restoredMovies = [];
+      const items = Object.create(null);
+      const remoteIds = new Set();
+      let offset = 0;
+      do {
+        const { data, count, error } = await client.schema("public").from("movie_logs")
+          .select(newMovieRpcColumns, { count: "exact" }).eq("user_id", userId)
+          .order("id", { ascending: true }).range(offset, offset + 499);
+        if (!isCurrentRequest()) throw { code: "AUTH_USER_CHANGED" };
+        if (error) throw error;
+        if (!Array.isArray(data) || count !== expected.size || !data.length
+          || offset + data.length > expected.size) throw { code: "BACKUP_RESTORE_MISMATCH" };
+        for (const row of data) {
+          if (!row || row.user_id !== userId) throw { code: "BACKUP_RESTORE_MISMATCH" };
+          validateMovieLogSyncRemoteReference(row.id, row.updated_at, false);
+          const movie = convertSupabaseMovieRowForDisplay(row);
+          if (!expected.has(movie.id) || Object.prototype.hasOwnProperty.call(items, movie.id)
+            || remoteIds.has(row.id.toLowerCase())) throw { code: "BACKUP_RESTORE_MISMATCH" };
+          // series_orderも含め、先の全件取得と同じ本文であることを確認する。
+          if (!newMoviePayloadMatches(buildSupabaseMoviePayload(movie, userId),
+            buildSupabaseMoviePayload(displayedById.get(movie.id), userId))) throw { code: "REMOTE_DATA_CHANGED" };
+          remoteIds.add(row.id.toLowerCase());
+          restoredMovies.push(movie);
+          items[movie.id] = { remoteId: row.id, remoteUpdatedAt: row.updated_at, dirty: false, pendingDelete: false };
+        }
+        offset += data.length;
+      } while (offset < expected.size);
+
+      const { count, error } = await client.schema("public").from("movie_logs")
+        .select("id", { count: "exact", head: true }).eq("user_id", userId);
+      if (!isCurrentRequest()) throw { code: "AUTH_USER_CHANGED" };
+      if (error) throw error;
+      if (count !== expected.size || restoredMovies.length !== expected.size
+        || [...expected.keys()].some((id) => !Object.prototype.hasOwnProperty.call(items, id))) {
+        throw { code: "BACKUP_RESTORE_MISMATCH" };
+      }
+      return { movies: restoredMovies, items };
+    }
+
+    restoreBackupInSupabase = async function (preparedMovies, initiatingSession) {
+      // ファイル読込前のユーザーに固定し、読込中のアカウント切替も検出する。
+      const userId = initiatingSession?.userId;
+      const sessionVersion = initiatingSession?.sessionVersion;
+      let operation = null;
+      const isCurrentSession = () => authenticated === true && autoRestoreSessionUserId === userId
+        && autoSyncMetadataSessionVersion === sessionVersion;
+      const isCurrentRequest = () => isCurrentSession() && (!operation || backupRestoreOperation === operation);
+      try {
+        if (!client || typeof userId !== "string" || !userId.trim() || !isCurrentSession()
+          || !supabaseMovieLoadRequest?.ready || supabaseMovieLoadRequest.userId !== userId
+          || supabaseMovieLoadRequest.sessionVersion !== sessionVersion) throw { code: "AUTH_USER_CHANGED" };
+        const inputKey = JSON.stringify(preparedMovies);
+        const localRaw = localStorage.getItem("movieLog_movies");
+        const metadataRaw = localStorage.getItem("movieLog_sync_meta_v1");
+        const moviesRaw = JSON.stringify(movies);
+        const assertLocalSafe = () => {
+          if (!isCurrentRequest()) throw { code: "AUTH_USER_CHANGED" };
+          if (localStorage.getItem("movieLog_movies") !== localRaw
+            || localStorage.getItem("movieLog_sync_meta_v1") !== metadataRaw || JSON.stringify(movies) !== moviesRaw) {
+            throw { code: "LOCAL_DATA_CHANGED" };
+          }
+          if (newMovieSaveRunning || newMovieInsertQueue.size || movieEditSavingIds.size
+            || editedMovieUpdateQueue.size || deletingMovieIds.size || supabaseRestoreRunning
+            || autoRestoreRunning || autoSyncMetadataRunning || supabaseSyncMetadataInitializing
+            || supabaseSyncDiffRunning || rlsTestRunning) throw { code: "BACKUP_RESTORE_BUSY" };
+        };
+        const assertUser = async () => {
+          if (!isCurrentRequest()) throw { code: "AUTH_USER_CHANGED" };
+          const { data, error } = await client.auth.getUser();
+          if (error || data?.user?.id !== userId || !isCurrentRequest()) throw { code: "AUTH_USER_CHANGED" };
+        };
+        assertLocalSafe();
+        await assertUser();
+
+        if (backupRestoreOperation?.userId === userId && backupRestoreOperation.sessionVersion === sessionVersion
+          && ["saved", "uncertain", "invalid"].includes(backupRestoreOperation.phase)) {
+          operation = backupRestoreOperation;
+          if (operation.inputKey !== inputKey) throw { code: "BACKUP_RESTORE_PENDING" };
+          if (operation.phase === "invalid") throw { code: "INVALID_BACKUP_RESTORE_RESULT" };
+          // 同じファイルの再選択は、保存済み／成否不明の確認用SELECTだけにする。
+        } else {
+          assertLocalSafe();
+          if (!confirm(`バックアップの${preparedMovies.length}作品に完全復元します。\n現在の${movies.length}作品はバックアップ内容に置き換わります。\nバックアップにない作品は削除され、未同期の変更も置き換わります。\nこの操作を続けますか？`)) {
+            return { ok: false, notify: false };
+          }
+          await assertUser();
+          assertLocalSafe();
+          operation = { userId, sessionVersion, inputKey, movies: preparedMovies, phase: "uncertain", result: null };
+          backupRestoreOperation = operation;
+          let response;
+          try {
+            response = await client.rpc("restore_movie_logs_from_backup", { p_movies: operation.movies });
+            if (response.error) throw response.error;
+          } catch (error) {
+            const definiteFailure = /^[0-9A-Z]{5}$/.test(String(error?.code || ""))
+              || (Number.isInteger(error?.status) && error.status >= 400 && error.status < 500);
+            if (definiteFailure) {
+              operation.phase = "failed";
+              throw error;
+            }
+            // 通信応答が不明でも再RPCせず、全件・ID・本文を確認する。
+          }
+          if (response && !response.error) {
+            operation.phase = response.data?.status === "restored" ? "saved" : "invalid";
+            try {
+              validateBackupRestoreRpcResult(response.data, operation.movies.length);
+            } catch (error) {
+              operation.phase = "invalid";
+              throw error;
+            }
+            operation.result = response.data;
+          }
+        }
+
+        await assertUser();
+        assertLocalSafe();
+        const snapshot = await fetchBackupRestoreSnapshot(userId, isCurrentRequest, operation.movies);
+        operation.phase = "saved";
+        await assertUser();
+        assertLocalSafe();
+        const metadata = { version: 1, userId, initializedAt: new Date().toISOString(), items: snapshot.items };
+        validateMovieLogSyncMetadata(metadata, userId);
+        const serializedMovies = JSON.stringify(snapshot.movies);
+        const serializedMetadata = JSON.stringify(metadata);
+        // RPC成功（または正式状態一致）・全件照合後のみ保存。既存値の事前削除はしない。
+        localStorage.setItem("movieLog_movies", serializedMovies);
+        if (localStorage.getItem("movieLog_movies") !== serializedMovies
+          || localStorage.getItem("movieLog_sync_meta_v1") !== metadataRaw) throw { code: "BACKUP_CACHE_SAVE_FAILED" };
+        localStorage.setItem("movieLog_sync_meta_v1", serializedMetadata);
+        if (localStorage.getItem("movieLog_sync_meta_v1") !== serializedMetadata
+          || localStorage.getItem("movieLog_movies") !== serializedMovies) throw { code: "BACKUP_CACHE_SAVE_FAILED" };
+        movies = snapshot.movies;
+        populateYearFilter();
+        showView("list");
+        console.info("✅ バックアップ復元 完了", operation.result
+          ? { 件数: operation.result.final_count, 追加: operation.result.inserted_count,
+            更新: operation.result.updated_count, 削除: operation.result.deleted_count }
+          : { 件数: snapshot.movies.length });
+        backupRestoreOperation = null;
+        return { ok: true, message: `${snapshot.movies.length}作品をバックアップから復元しました。` };
+      } catch (error) {
+        const code = /^[A-Za-z0-9_]{1,64}$/.test(String(error?.code || "")) ? String(error.code) : "UNKNOWN_ERROR";
+        console.warn("⚠️ バックアップ復元処理を完了できませんでした", { code });
+        const reasons = {
+          AUTH_USER_CHANGED: "ログイン状態が変わったため処理を中止しました。取得結果は反映していません。",
+          LOCAL_DATA_CHANGED: "処理中にローカルデータが変更されたため、上書きを中止しました。",
+          BACKUP_RESTORE_BUSY: "別の保存・復元・確認処理が実行中です。完了後にもう一度お試しください。",
+          BACKUP_RESTORE_PENDING: "前回の復元結果の確認が未完了です。前回と同じバックアップを選択して結果を確認してください。",
+          INVALID_BACKUP_RESTORE_RESULT: "復元RPCの結果を確認できませんでした。再RPCは行いません。再読み込みしてSupabaseの正式データを確認してください。",
+          BACKUP_RESTORE_MISMATCH: "Supabaseの件数・ID・本文がバックアップと一致しません。自動修正や再RPCは行いません。",
+          REMOTE_DATA_CHANGED: "全件取得中にSupabaseの内容が変わったため、正式反映を中止しました。",
+          BACKUP_CACHE_SAVE_FAILED: "復元データのブラウザー保存を確認できませんでした。",
+          "22023": "バックアップの形式・項目を確認してください。Supabaseの復元処理は確定していません。",
+          "22003": "バックアップの数値またはシリーズ件数を確認してください。",
+          "42501": "復元権限を確認できませんでした。ログイン状態を確認してください。",
+        };
+        const reason = reasons[code] || "通信環境とバックアップ内容を確認してください。";
+        const message = operation?.phase === "saved"
+          ? "バックアップの復元はSupabaseで完了しましたが、表示データの更新に失敗しました。\n" + reason
+            + "\n同じバックアップをもう一度選択すると再取得だけを試します。再読み込みでも正式データを確認できます。"
+          : operation?.phase === "uncertain"
+            ? "通信が途切れ、バックアップ復元の成否を確認できませんでした。\n" + reason
+              + "\n同じバックアップを選択するとSELECTで結果を確認します。復元RPCは自動再送しません。"
+            : reason + "\n復元内容をローカルへ反映していません。";
+        return { ok: false, notify: isCurrentSession(), message };
+      }
+    };
+    // END JSON backup Supabase restore
+
 
     // BEGIN temporary Supabase RLS test (manual execution only)
     let rlsTestRunning = false;
