@@ -3635,21 +3635,28 @@ html:not([data-auth-state="authenticated"]) body { padding-bottom: 0 !important;
       }
 
       // ===================== 削除 =====================
-      function deleteMovie(id) {
-        if (confirm("この作品を削除しますか？")) {
-          const movieToDelete = movies.find((movie) => movie.id === id);
-          movies = movies.filter((m) => m.id !== id);
-          recalculateSeriesOrders();
-          localStorage.setItem("movieLog_movies", JSON.stringify(movies));
-          populateYearFilter();
-          showView("list");
-          if (movieToDelete) {
-            if (deleteMovieFromSupabase) {
-              void deleteMovieFromSupabase({ ...movieToDelete });
-            } else {
-              console.warn("⚠️ Supabase削除をスキップ：ログインユーザーを取得できませんでした");
-            }
-          }
+      const deletingMovieIds = new Set();
+      async function deleteMovie(id) {
+        const localId = String(id);
+        if (deletingMovieIds.has(localId)) return;
+        const movieToDelete = movies.find((movie) => movie.id === id);
+        if (!movieToDelete || !confirm("この作品を削除しますか？")) return;
+        if (!deleteMovieFromSupabase) {
+          alert("ログイン状態を確認して、もう一度削除してください。");
+          return;
+        }
+        deletingMovieIds.add(localId);
+        const buttons = [...document.querySelectorAll("#detailView .detail-action-delete")];
+        const disabledStates = buttons.map((button) => button.disabled);
+        buttons.forEach((button) => { button.disabled = true; });
+        try {
+          const result = await deleteMovieFromSupabase({ ...movieToDelete });
+          if (result?.notify !== false && result?.message) alert(result.message);
+        } catch (_) {
+          alert("削除結果を確認できませんでした。もう一度操作するか、ページを再読み込みしてください。");
+        } finally {
+          deletingMovieIds.delete(localId);
+          buttons.forEach((button, index) => { button.disabled = disabledStates[index]; });
         }
       }
 
@@ -4437,86 +4444,228 @@ html:not([data-auth-state="authenticated"]) body { padding-bottom: 0 !important;
     };
     // END edited movie Supabase update
 
-    // BEGIN deleted movie Supabase delete (localStorage remains primary)
-    deleteMovieFromSupabase = async function (movie) {
-      let stage = "ログイン確認";
+    // BEGIN deleted movie Supabase RPC (server data is adopted only after verification)
+    const movieDeleteOperations = new Map();
+    let movieDeleteQueue = Promise.resolve();
+
+    async function runMovieDeleteRpc(movieSnapshot, userId, sessionVersion) {
+      let operation;
+      const isCurrentRequest = () => authenticated === true && autoRestoreSessionUserId === userId
+        && autoSyncMetadataSessionVersion === sessionVersion;
       try {
-        if (!client) {
-          console.warn("⚠️ Supabase削除をスキップ：ログインユーザーを取得できませんでした");
-          return;
+        if (!client || typeof userId !== "string" || !userId.trim() || !isCurrentRequest()) {
+          throw { code: "AUTH_USER_CHANGED" };
         }
-        const { data: authData, error: authError } = await client.auth.getUser();
-        if (authError || !authData?.user?.id) {
-          console.warn("⚠️ Supabase削除をスキップ：ログインユーザーを取得できませんでした");
-          return;
+        const localId = normalizeMovieLogSyncLocalId(movieSnapshot.id);
+        const key = JSON.stringify([userId, sessionVersion, localId]);
+        operation = movieDeleteOperations.get(key);
+        if (!operation) {
+          operation = { remoteId: null, rpcStatus: null, uncertain: false, seriesName: "", seriesChanges: [] };
+          movieDeleteOperations.set(key, operation);
         }
-        stage = "データ確認";
-        if (movie.id === undefined || movie.id === null || movie.id === "") throw { code: "INVALID_LOCAL_ID" };
-        const userId = authData.user.id;
-        const localId = String(movie.id);
-        stage = "対象確認";
-        const { data: existing, error: selectError } = await client.schema("public").from("movie_logs")
-          .select("id")
-          .eq("user_id", userId)
-          .eq("legacy_local_id", localId)
-          .limit(2);
-        if (selectError) throw selectError;
-        if (!Array.isArray(existing)) throw { code: "INVALID_LOOKUP_RESPONSE" };
-        if (existing.length === 0) {
-          console.info("ℹ️ Supabase削除をスキップ：対応するデータがまだありません");
-          return;
-        }
-        if (existing.length > 1) {
-          console.error("❌ Supabase削除中止：同じlocal IDの行が複数あります");
-          return;
-        }
-        const rowId = existing[0]?.id;
-        if (typeof rowId !== "string" || !rowId) throw { code: "INVALID_LOOKUP_RESPONSE" };
-        stage = "DELETE";
-        // 事前に確認したUUIDの1行だけを、ユーザーとローカルIDも条件にして削除する。
-        const { data: deleted, error: deleteError } = await client.schema("public").from("movie_logs")
-          .delete()
-          .eq("user_id", userId)
-          .eq("legacy_local_id", localId)
-          .eq("id", rowId)
-          .select("id");
-        if (deleteError) throw deleteError;
-        if (!Array.isArray(deleted) || deleted.length !== 1 || deleted[0]?.id !== rowId) {
-          throw { code: "DELETE_ROW_MISMATCH" };
-        }
-        stage = "削除確認";
-        const { data: remaining, error: verifyError } = await client.schema("public").from("movie_logs")
-          .select("id")
-          .eq("user_id", userId)
-          .eq("id", rowId)
-          .limit(1);
-        if (verifyError) throw verifyError;
-        if (!Array.isArray(remaining)) throw { code: "INVALID_LOOKUP_RESPONSE" };
-        if (remaining.length !== 0) throw { code: "DELETE_ROW_REMAINS" };
-        console.log("✅ Supabase削除 成功");
-      } catch (error) {
-        if (stage === "ログイン確認") {
-          console.warn("⚠️ Supabase削除をスキップ：ログインユーザーを取得できませんでした");
-          return;
-        }
-        const code = /^[A-Za-z0-9_]{1,64}$/.test(String(error?.code || "")) ? String(error.code) : "UNKNOWN_ERROR";
-        const reasons = {
-          "42501": "RLSポリシーまたは操作権限を確認してください",
-          "42P01": "削除先テーブルが見つかりません",
-          "42703": "削除先の列が見つかりません",
-          "23503": "外部キー制約を確認してください",
-          INVALID_LOCAL_ID: "削除作品のローカルIDを確認できませんでした",
-          INVALID_LOOKUP_RESPONSE: "削除対象の確認結果を取得できませんでした",
-          DELETE_ROW_MISMATCH: "対象の1件を削除できたことを確認できませんでした",
-          DELETE_ROW_REMAINS: "削除対象の行がまだ残っています",
+        const localRaw = localStorage.getItem("movieLog_movies");
+        const moviesRaw = JSON.stringify(movies);
+        const beforeMovies = JSON.parse(moviesRaw);
+        const readMetadata = () => localStorage.getItem("movieLog_sync_meta_v1") === null
+          ? null : readMovieLogSyncMetadata(userId);
+        const assertLocalSafe = () => {
+          if (!isCurrentRequest()) throw { code: "AUTH_USER_CHANGED" };
+          if (localStorage.getItem("movieLog_movies") !== localRaw || JSON.stringify(movies) !== moviesRaw) {
+            throw { code: "LOCAL_DATA_CHANGED" };
+          }
+          // 旧編集経路や進行中の新規保存を、全件取得結果で上書きしない。
+          if (editedMovieUpdateQueue.size || newMovieInsertQueue.size || newMovieSaveRunning) {
+            throw { code: "LOCAL_PENDING_SYNC" };
+          }
+          const metadata = readMetadata();
+          if (metadata && Object.values(metadata.items).some((item) => item.dirty || item.pendingDelete)) {
+            throw { code: "LOCAL_PENDING_SYNC" };
+          }
         };
-        console.error("❌ Supabase削除 失敗", {
-          code,
-          message: reasons[code] || `${stage}に失敗しました。通信環境と削除先の設定を確認してください`,
-        });
+        const assertUser = async () => {
+          const { data, error } = await client.auth.getUser();
+          if (error || data?.user?.id !== userId || !isCurrentRequest()) throw { code: "AUTH_USER_CHANGED" };
+        };
+        assertLocalSafe();
+        await assertUser();
+
+        if (operation.rpcStatus === null) {
+          // movie.idはlegacy ID。削除前に本人の行からUUIDを取得する。
+          const { data: existing, error: selectError } = await client.schema("public").from("movie_logs")
+            .select("id, user_id, legacy_local_id, updated_at, series_name")
+            .eq("user_id", userId).eq("legacy_local_id", localId).limit(2);
+          if (!isCurrentRequest()) throw { code: "AUTH_USER_CHANGED" };
+          if (selectError) throw selectError;
+          if (!Array.isArray(existing) || existing.length > 1) throw { code: "INVALID_LOOKUP_RESPONSE" };
+          if (existing.length === 0) {
+            // 応答消失後の確認でのみ不在状態として扱う。初回は対象1件が必要。
+            if (!operation.uncertain || operation.remoteId === null) throw { code: "DELETE_TARGET_MISSING" };
+            operation.rpcStatus = "not_found";
+          } else {
+            const row = existing[0];
+            if (!row || row.user_id !== userId || row.legacy_local_id !== localId
+              || (row.series_name !== null && typeof row.series_name !== "string")) throw { code: "INVALID_LOOKUP_RESPONSE" };
+            validateMovieLogSyncRemoteReference(row.id, row.updated_at, false);
+            const item = readMetadata()?.items[localId];
+            if ((item?.remoteId && item.remoteId.toLowerCase() !== row.id.toLowerCase())
+              || (operation.remoteId && operation.remoteId.toLowerCase() !== row.id.toLowerCase())) {
+              throw { code: "DELETE_UUID_MISMATCH" };
+            }
+            operation.remoteId = row.id;
+            operation.seriesName = String(row.series_name || "").trim();
+            await assertUser();
+            assertLocalSafe();
+            operation.uncertain = true;
+            let response;
+            try {
+              response = await client.rpc("delete_movie_log_with_series_order", {
+                p_movie_id: operation.remoteId,
+                p_expected_legacy_local_id: localId,
+              });
+              if (response.error) throw response.error;
+            } catch (rpcError) {
+              // 明確なDBエラーはロールバック済み。通信エラーは次回同じUUIDを確認。
+              if (/^[0-9A-Z]{5}$/.test(String(rpcError?.code || ""))) operation.uncertain = false;
+              throw rpcError;
+            }
+            // 応答検証に失敗しても、正常応答後は同じDELETEを再送しない。
+            operation.rpcStatus = "unverified";
+            const result = response.data;
+            if (!result || typeof result !== "object" || Array.isArray(result)) throw { code: "INVALID_DELETE_RESULT" };
+            if (result.target_movie_id !== undefined
+              && String(result.target_movie_id).toLowerCase() !== operation.remoteId.toLowerCase()) throw { code: "INVALID_DELETE_RESULT" };
+            if (result.target_legacy_local_id !== undefined
+              && result.target_legacy_local_id !== localId) throw { code: "INVALID_DELETE_RESULT" };
+            if (result.status === "deleted") {
+              if (typeof result.deleted_movie_id !== "string"
+                || result.deleted_movie_id.toLowerCase() !== operation.remoteId.toLowerCase()
+                || result.deleted_legacy_local_id !== localId) throw { code: "INVALID_DELETE_RESULT" };
+              operation.rpcStatus = "deleted";
+            } else if (result.status === "not_found") {
+              if (result.deleted_movie_id != null || result.deleted_legacy_local_id != null) throw { code: "INVALID_DELETE_RESULT" };
+              operation.rpcStatus = "not_found";
+            } else {
+              throw { code: "INVALID_DELETE_RESULT" };
+            }
+            operation.uncertain = false;
+            operation.seriesChanges = Array.isArray(result.series_changes)
+              ? result.series_changes.map((change) => change?.legacy_local_id)
+                .filter((id) => typeof id === "string" && id.trim()) : [];
+          }
+        }
+
+        // RPC完了後・再取得後にも、開始時と同じユーザーであることを確認。
+        await assertUser();
+        assertLocalSafe();
+        const loadedMovies = await fetchSupabaseMoviesForUser(userId, isCurrentRequest);
+        const loadedById = new Map(loadedMovies.map((movie) => [movie.id, movie]));
+        if (loadedById.has(localId)) throw { code: "DELETE_ROW_REMAINS" };
+        if (operation.rpcStatus === "unverified") throw { code: "INVALID_DELETE_RESULT" };
+        // not_foundは「今回削除した」とはせず、正式な不在状態を採用する。
+        const referenceIds = new Set(operation.seriesChanges.filter((id) => id !== localId && loadedById.has(id)));
+        for (const previous of beforeMovies) {
+          const current = loadedById.get(previous.id);
+          if (current && operation.seriesName && String(previous.seriesName || "").trim() === operation.seriesName
+            && previous.seriesOrder !== current.seriesOrder
+            && newMoviePayloadMatches(buildSupabaseMoviePayload(previous, userId), buildSupabaseMoviePayload(current, userId), true)) {
+            referenceIds.add(previous.id);
+          }
+        }
+        const references = new Map();
+        const idsToRead = [...referenceIds];
+        for (let offset = 0; offset < idsToRead.length; offset += 200) {
+          const ids = idsToRead.slice(offset, offset + 200);
+          const { data, error } = await client.schema("public").from("movie_logs")
+            .select(newMovieRpcColumns).eq("user_id", userId).in("legacy_local_id", ids);
+          if (!isCurrentRequest()) throw { code: "AUTH_USER_CHANGED" };
+          if (error) throw error;
+          if (!Array.isArray(data) || data.length !== ids.length) throw { code: "INVALID_LOOKUP_RESPONSE" };
+          for (const row of data) {
+            if (!row || row.user_id !== userId || !ids.includes(row.legacy_local_id) || references.has(row.legacy_local_id)) {
+              throw { code: "INVALID_LOOKUP_RESPONSE" };
+            }
+            validateMovieLogSyncRemoteReference(row.id, row.updated_at, false);
+            if (!newMoviePayloadMatches(buildSupabaseMoviePayload(loadedById.get(row.legacy_local_id), userId),
+              buildSupabaseMoviePayload(convertSupabaseMovieRowForDisplay(row), userId))) throw { code: "REMOTE_DATA_CHANGED" };
+            references.set(row.legacy_local_id, row);
+          }
+        }
+        await assertUser();
+        assertLocalSafe();
+        // 正式な全件取得と不在確認が済むまで、映画配列・キャッシュへ書き込まない。
+        const serialized = JSON.stringify(loadedMovies);
+        movies = loadedMovies;
+        localStorage.setItem("movieLog_movies", serialized);
+        if (localStorage.getItem("movieLog_movies") !== serialized) throw { code: "CACHE_SAVE_FAILED" };
+        let metadataMessage = "";
+        try {
+          updateMovieLogSyncMetadata(userId, (metadata) => {
+            const target = metadata.items[localId];
+            if (target && (target.dirty || target.pendingDelete
+              || (target.remoteId !== null && target.remoteId.toLowerCase() !== operation.remoteId.toLowerCase()))) {
+              throw { code: "SYNC_META_CHANGED" };
+            }
+            delete metadata.items[localId];
+            for (const [id, row] of references) {
+              const item = metadata.items[id];
+              if (item && (item.dirty || item.pendingDelete
+                || (item.remoteId !== null && item.remoteId.toLowerCase() !== row.id.toLowerCase()))) {
+                throw { code: "SYNC_META_CHANGED" };
+              }
+              metadata.items[id] = { ...item, remoteId: row.id, remoteUpdatedAt: row.updated_at, dirty: false, pendingDelete: false };
+            }
+            return true;
+          });
+        } catch (_) {
+          console.warn("⚠️ 削除後の一覧更新は完了しましたが、同期メタデータ更新を確認できませんでした");
+          metadataMessage = "一覧をSupabaseの正式データに更新しましたが、同期メタデータを更新できませんでした。同期メタデータの状態を確認してください。";
+        }
+        populateYearFilter();
+        showView("list");
+        if (movieDeleteOperations.get(key) === operation) movieDeleteOperations.delete(key);
+        return { ok: true, notify: true, message: metadataMessage };
+      } catch (error) {
+        const code = /^[A-Za-z0-9_]{1,64}$/.test(String(error?.code || "")) ? String(error.code) : "UNKNOWN_ERROR";
+        console.error("❌ 削除処理を完了できませんでした", { code });
+        const reasons = {
+          AUTH_USER_CHANGED: "ログインユーザーが変わったため処理を中止しました。",
+          DELETE_UUID_MISMATCH: "削除対象のUUIDが一致しません。別の作品を削除せず中止しました。",
+          DELETE_TARGET_MISSING: "削除対象の1件を確認できませんでした。ページを再読み込みして正式な一覧を確認してください。",
+          DELETE_ROW_REMAINS: "同じ登録IDの作品がSupabaseに存在します。別の行を削除せず中止しました。",
+          INVALID_DELETE_RESULT: "削除RPCの結果を確認できませんでした。",
+          LOCAL_DATA_CHANGED: "処理中にローカルデータが変更されたため、上書きを中止しました。",
+          LOCAL_PENDING_SYNC: "未反映のローカル変更または保存処理があります。処理完了と同期状態を確認してから再試行してください。",
+          "42501": "削除権限を確認できませんでした。ログイン状態を確認してください。",
+          "22023": "削除対象の識別情報を確認してください。",
+        };
+        const reason = reasons[code] || "通信環境と削除結果を確認してください。";
+        const message = operation?.rpcStatus === "deleted"
+          ? "作品はSupabaseで削除済みですが、表示更新を完了できませんでした。\n" + reason + "\nもう一度削除ボタンを押すと再取得だけを行います。ページの再読み込みでも確認できます。"
+          : operation?.rpcStatus !== null && operation?.rpcStatus !== undefined
+            ? "削除要求の応答は受信済みですが、正式な一覧の不在確認を完了できませんでした。\n" + reason + "\n再試行ではRPCを再送せず、一覧を再取得します。"
+            : operation?.uncertain
+              ? "通信が途切れ、削除結果を確認できませんでした。\n" + reason + "\n再試行では同じUUIDの対象を確認し、別の作品を代わりに削除しません。"
+              : "削除を完了できませんでした。\n" + reason + "\nローカルの作品は削除していません。";
+        return { ok: false, notify: isCurrentRequest(), message };
       }
+    }
+
+    deleteMovieFromSupabase = function (movie) {
+      // 開始時のユーザーと入力コピーを固定し、待機中のユーザー切替を検出する。
+      const userId = authenticated === true ? autoRestoreSessionUserId : null;
+      const sessionVersion = autoSyncMetadataSessionVersion;
+      let snapshot;
+      try {
+        snapshot = JSON.parse(JSON.stringify(movie));
+      } catch (_) {
+        return Promise.resolve({ ok: false, message: "削除対象の作品を確認できませんでした。" });
+      }
+      // 削除経路内の全件再取得・キャッシュ反映を直列化する。情報はメモリだけに保持。
+      const task = movieDeleteQueue.then(() => runMovieDeleteRpc(snapshot, userId, sessionVersion));
+      movieDeleteQueue = task.catch(() => {});
+      return task;
     };
-    // END deleted movie Supabase delete
+    // END deleted movie Supabase RPC
 
     // BEGIN temporary Supabase RLS test (manual execution only)
     let rlsTestRunning = false;
