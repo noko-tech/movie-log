@@ -2366,6 +2366,8 @@ html:not([data-auth-state="authenticated"]) body { padding-bottom: 0 !important;
       let saveNewMovieToSupabase = null;
       let updateMovieInSupabase = null;
       let deleteMovieFromSupabase = null;
+      let newMovieSaveRunning = false;
+      let newMovieSaveOperation = null;
 
       // TMDbはSupabase Edge Function経由で取得
       const TMDB_FUNCTION_URL =
@@ -3131,6 +3133,8 @@ html:not([data-auth-state="authenticated"]) body { padding-bottom: 0 !important;
 
       // ===================== フォーム =====================
       function openForm(id = null) {
+        // 新しく開いた登録フォームは、前のフォームの再試行とは別の操作。
+        if (!id) newMovieSaveOperation = null;
         editingId = id;
         currentRating = 0;
         window.currentFormFavorite = false;
@@ -3260,7 +3264,8 @@ html:not([data-auth-state="authenticated"]) body { padding-bottom: 0 !important;
       }
 
       // ===================== 保存 =====================
-      function saveMovie() {
+      async function saveMovie() {
+        if (!editingId && newMovieSaveRunning) return;
         const title = document.getElementById("titleInput").value.trim();
         if (!title) {
           alert("タイトルを入力してください");
@@ -3294,6 +3299,9 @@ html:not([data-auth-state="authenticated"]) body { padding-bottom: 0 !important;
         if (tmdbId !== null && tmdbId !== undefined && tmdbId !== "") movieData.tmdbId = tmdbId;
         const duplicate = movies.some((movie) => {
           if (movie.id === editingId) return false;
+          // 保存済みで表示更新だけ失敗した操作は、再取得を続けられるようにする。
+          if (isNewMovie && newMovieSaveOperation?.saved
+            && String(movie.id) === newMovieSaveOperation.movie.id) return false;
           const hasTmdbId = movieData.tmdbId !== undefined && movieData.tmdbId !== "";
           const hasExistingTmdbId = movie.tmdbId !== undefined && movie.tmdbId !== null && movie.tmdbId !== "";
           if (hasTmdbId && hasExistingTmdbId) return String(movie.tmdbId) === String(movieData.tmdbId);
@@ -3305,30 +3313,61 @@ html:not([data-auth-state="authenticated"]) body { padding-bottom: 0 !important;
           return;
         }
 
+        if (isNewMovie) {
+          if (!saveNewMovieToSupabase) {
+            alert("ログイン状態を確認して、もう一度保存してください。");
+            return;
+          }
+          if (!newMovieSaveOperation) {
+            newMovieSaveOperation = {
+              movie: { ...movieData, id: Date.now().toString(), createdAt: new Date().toISOString() },
+              userId: null, sessionVersion: null, saved: false, uncertain: false,
+            };
+          } else if (!newMovieSaveOperation.saved && !newMovieSaveOperation.uncertain) {
+            // 明確な失敗後は入力修正を許可し、同じID・登録日時を維持する。
+            newMovieSaveOperation.movie = {
+              ...movieData, id: newMovieSaveOperation.movie.id, createdAt: newMovieSaveOperation.movie.createdAt,
+            };
+          }
+          const operation = newMovieSaveOperation;
+          const buttons = [document.getElementById("saveBtn"), document.getElementById("mobileSaveBtn")];
+          const disabledStates = buttons.map((button) => button.disabled);
+          newMovieSaveRunning = true;
+          buttons.forEach((button) => { button.disabled = true; });
+          try {
+            const result = await saveNewMovieToSupabase({ ...operation.movie }, operation);
+            if (newMovieSaveOperation === operation && !editingId) {
+              if (result?.ok) {
+                newMovieSaveOperation = null;
+                if (result.message) alert(result.message);
+              } else if (!document.getElementById("formView").classList.contains("hidden")) {
+                alert(result?.message || "保存結果を確認できませんでした。入力内容を維持しています。");
+              }
+            }
+          } catch (_) {
+            if (newMovieSaveOperation === operation && !editingId
+              && !document.getElementById("formView").classList.contains("hidden")) {
+              alert("保存結果を確認できませんでした。入力内容を維持しています。もう一度保存して結果を確認してください。");
+            }
+          } finally {
+            newMovieSaveRunning = false;
+            buttons.forEach((button, index) => { button.disabled = disabledStates[index]; });
+          }
+          return;
+        }
+
         if (editingId) {
           const index = movies.findIndex((m) => m.id === editingId);
           if (index !== -1) {
             movies[index] = { ...movies[index], ...movieData };
           }
-        } else {
-          movieData.id = Date.now().toString();
-          movieData.createdAt = new Date().toISOString();
-          movies.unshift(movieData);
         }
 
         recalculateSeriesOrders();
         localStorage.setItem("movieLog_movies", JSON.stringify(movies));
         populateYearFilter();
         showView("list");
-        if (isNewMovie) {
-          if (saveNewMovieToSupabase) {
-            // 公開順の再計算・localStorage保存後の新規作品だけを渡す。
-            // 通信完了を待たず、従来の画面遷移とローカル保存を維持する。
-            void saveNewMovieToSupabase({ ...movieData });
-          } else {
-            console.warn("⚠️ Supabase保存をスキップ：ログインユーザーを取得できませんでした");
-          }
-        } else {
+        if (!isNewMovie) {
           // 入力値だけでなく、公開順も含めてローカル保存済みの作品を渡す。
           const savedMovie = movies.find((movie) => movie.id === editingId);
           if (savedMovie) {
@@ -3961,7 +4000,7 @@ html:not([data-auth-state="authenticated"]) body { padding-bottom: 0 !important;
     let busy = false;
     let authenticated = false;
 
-    // BEGIN new movie Supabase insert (localStorage remains primary)
+    // BEGIN new movie Supabase RPC save (Supabase is primary for new movies)
     function nullableMovieInteger(value, min = Number.MIN_SAFE_INTEGER, max = Number.MAX_SAFE_INTEGER) {
       if (value === null || value === undefined || (typeof value === "string" && !value.trim())) return null;
       if (typeof value !== "string" && typeof value !== "number") return null;
@@ -4009,160 +4048,223 @@ html:not([data-auth-state="authenticated"]) body { padding-bottom: 0 !important;
       }
     }
 
-    async function runNewMovieInsert(movie) {
-      let localId;
-      let movieSnapshot;
-      try {
-        localId = normalizeMovieLogSyncLocalId(movie?.id);
-        // 最初のawaitより前にコピーし、通信中の変更で送信内容が変わらないようにする。
-        movieSnapshot = JSON.parse(JSON.stringify(movie));
-      } catch (_) {
-        console.error("❌ Supabase新規保存中止：新規作品の保存済みデータを確認できませんでした");
-        return;
-      }
-      const initiatingUserId = authenticated === true ? autoRestoreSessionUserId : null;
-      // 映画のローカル保存成功後、認証通信より先に未同期itemとdirtyを永続化する。
-      try {
-        if (authenticated !== true || typeof initiatingUserId !== "string" || !initiatingUserId.trim()) throw { code: "AUTH_USER_CHANGED" };
-        markMovieSyncDirty(localId, initiatingUserId);
-      } catch (error) {
-        const code = /^[A-Za-z0-9_]{1,64}$/.test(String(error?.code || "")) ? String(error.code) : "UNKNOWN_ERROR";
-        console.error("❌ 同期メタデータdirty設定 失敗", {
-          code,
-          message: "dirty設定を確認できないためINSERTは開始しません。ローカルデータは維持しています",
-        });
-        return;
-      }
-      let stage = "ログイン確認";
-      try {
-        if (!client) throw { code: "AUTH_USER_CHANGED" };
-        const { data: authData, error: authError } = await client.auth.getUser();
-        if (authError || authData?.user?.id !== initiatingUserId
-          || !authenticated || autoRestoreSessionUserId !== initiatingUserId) throw { code: "AUTH_USER_CHANGED" };
-        const userId = authData.user.id;
-        stage = "データ準備";
-        const payload = Object.freeze(buildSupabaseMoviePayload(movieSnapshot, userId));
-        stage = "重複確認";
-        const { data: existing, error: selectError } = await client.schema("public").from("movie_logs")
-          .select("id")
-          .eq("user_id", payload.user_id)
-          .eq("legacy_local_id", payload.legacy_local_id)
-          .limit(1);
-        if (selectError) throw selectError;
-        if (!Array.isArray(existing)) throw { code: "INVALID_LOOKUP_RESPONSE" };
-        if (existing.length) {
-          console.info("ℹ️ Supabase保存済みのためINSERTをスキップ（dirtyを維持）");
-          return;
-        }
-        // 重複確認の待機中にログアウト・ユーザー切替があった場合も送信しない。
-        if (!authenticated || autoRestoreSessionUserId !== userId) throw { code: "AUTH_USER_CHANGED" };
-        stage = "INSERT";
-        const { data: inserted, error: insertError } = await client.schema("public").from("movie_logs")
-          .insert(payload)
-          .select("id, user_id, legacy_local_id, updated_at");
-        if (insertError) throw insertError;
-        if (!Array.isArray(inserted) || inserted.length !== 1 || !inserted[0]
-          || inserted[0].user_id !== userId || inserted[0].legacy_local_id !== localId) throw { code: "INSERT_ROW_MISMATCH" };
-        const insertedRow = inserted[0];
-        validateMovieLogSyncRemoteReference(insertedRow.id, insertedRow.updated_at, false);
-        console.log("✅ Supabase新規保存 成功");
+    const newMovieRpcColumns = "id, user_id, legacy_local_id, created_at, tmdb_id, media_type, title, poster_url, overview, rating, favorite, status, genre, year, runtime, country, director, writer, cast, watch_date, comment, series_name, series_order, updated_at";
 
-        stage = "同期メタデータ成功反映";
-        const { data: currentAuth, error: currentAuthError } = await client.auth.getUser();
-        if (currentAuthError || currentAuth?.user?.id !== userId
-          || !authenticated || autoRestoreSessionUserId !== userId) throw { code: "AUTH_USER_CHANGED" };
-        let localRaw;
-        try {
-          localRaw = localStorage.getItem("movieLog_movies");
-        } catch (_) {
-          throw { code: "LOCAL_STORAGE_UNAVAILABLE" };
+    function newMoviePayloadMatches(left, right, ignoreSeriesOrder = false) {
+      return Object.keys(left).every((field) => {
+        if (ignoreSeriesOrder && field === "series_order") return true;
+        if (field === "created_at") {
+          const a = typeof left[field] === "string" ? Date.parse(left[field]) : NaN;
+          const b = typeof right[field] === "string" ? Date.parse(right[field]) : NaN;
+          return Number.isFinite(a) && a === b;
         }
-        let currentMovies;
-        try {
-          currentMovies = JSON.parse(localRaw);
-        } catch (_) {
-          throw { code: "INVALID_LOCAL_DATA" };
+        return left[field] === right[field];
+      });
+    }
+
+    function validateNewMovieRpcRow(row, payload) {
+      if (!row || typeof row !== "object" || Array.isArray(row)
+        || row.user_id !== payload.user_id || row.legacy_local_id !== payload.legacy_local_id) {
+        throw { code: "RPC_ROW_MISMATCH" };
+      }
+      validateMovieLogSyncRemoteReference(row.id, row.updated_at, false);
+      const restored = convertSupabaseMovieRowForDisplay(row);
+      if (!newMoviePayloadMatches(payload, buildSupabaseMoviePayload(restored, payload.user_id), true)) {
+        throw { code: "SAVED_CONTENT_MISMATCH" };
+      }
+      return row;
+    }
+
+    async function findNewMovieRpcRow(userId, localId, isCurrentRequest) {
+      const { data, error } = await client.schema("public").from("movie_logs")
+        .select(newMovieRpcColumns).eq("user_id", userId).eq("legacy_local_id", localId).limit(2);
+      if (!isCurrentRequest()) throw { code: "AUTH_USER_CHANGED" };
+      if (error) throw error;
+      if (!Array.isArray(data) || data.length > 1) throw { code: "INVALID_LOOKUP_RESPONSE" };
+      return data[0] ?? null;
+    }
+
+    async function runNewMovieInsert(movie, operation) {
+      let payload;
+      try {
+        const localId = normalizeMovieLogSyncLocalId(movie?.id);
+        const movieSnapshot = JSON.parse(JSON.stringify(movie));
+        const userId = authenticated === true ? autoRestoreSessionUserId : null;
+        if (!client || typeof userId !== "string" || !userId.trim()
+          || newMovieSaveOperation !== operation || editingId) throw { code: "AUTH_USER_CHANGED" };
+        if (operation.userId === null) {
+          operation.userId = userId;
+          operation.sessionVersion = autoSyncMetadataSessionVersion;
         }
-        if (!Array.isArray(currentMovies)) throw { code: "INVALID_LOCAL_DATA" };
-        const matches = currentMovies.filter((current) => current && typeof current === "object" && !Array.isArray(current)
-          && ((typeof current.id === "string" && current.id.trim())
-            || (typeof current.id === "number" && Number.isSafeInteger(current.id)))
-          && String(current.id) === localId);
-        if (matches.length !== 1) {
-          console.warn("⚠️ 現在の新規作品を一意に確認できないためdirtyを維持します");
-          return;
-        }
-        const currentPayload = buildSupabaseMoviePayload(matches[0], userId);
-        const unchanged = Object.keys(payload).every((field) => {
-          if (field === "created_at" && payload[field] !== null && currentPayload[field] !== null) {
-            if (typeof payload[field] !== "string" || typeof currentPayload[field] !== "string") return false;
-            const sentTime = Date.parse(payload[field]);
-            const currentTime = Date.parse(currentPayload[field]);
-            return Number.isFinite(sentTime) && Number.isFinite(currentTime) && sentTime === currentTime;
+        const isCurrentRequest = () => authenticated === true && autoRestoreSessionUserId === userId
+          && operation.userId === userId && operation.sessionVersion === autoSyncMetadataSessionVersion
+          && newMovieSaveOperation === operation && !editingId
+          && !document.getElementById("formView").classList.contains("hidden");
+        if (!isCurrentRequest()) throw { code: "AUTH_USER_CHANGED" };
+        payload = Object.freeze(buildSupabaseMoviePayload(movieSnapshot, userId));
+        const localRaw = localStorage.getItem("movieLog_movies");
+        const moviesRaw = JSON.stringify(movies);
+        const beforeMovies = JSON.parse(moviesRaw);
+        const assertLocalSafe = () => {
+          if (!isCurrentRequest()) throw { code: "AUTH_USER_CHANGED" };
+          if (localStorage.getItem("movieLog_movies") !== localRaw || JSON.stringify(movies) !== moviesRaw) {
+            throw { code: "LOCAL_DATA_CHANGED" };
           }
-          return payload[field] === currentPayload[field];
-        });
-        if (!unchanged) {
-          console.info("ℹ️ ローカル内容が変更されているためdirtyを維持します");
-          return;
-        }
-        const metadata = readMovieLogSyncMetadata(userId);
-        if (!Object.prototype.hasOwnProperty.call(metadata.items, localId)
-          || metadata.items[localId].dirty !== true || metadata.items[localId].pendingDelete !== false) {
-          console.warn("⚠️ 同期メタデータの状態が変わったため成功反映を中止します");
-          return;
-        }
-        // 最後のawait後に比較し、成功反映まで非同期処理を挟まない。
-        if (localStorage.getItem("movieLog_movies") !== localRaw) {
-          console.info("ℹ️ ローカル保存内容が変わったためdirtyを維持します");
-          return;
-        }
-        markMovieSyncRemoteSuccess(localId, userId, insertedRow.id, insertedRow.updated_at);
-      } catch (error) {
-        if (stage === "ログイン確認") {
-          console.warn("⚠️ Supabase保存をスキップ：ログインユーザーを取得できませんでした");
-          return;
-        }
-        const code = /^[A-Za-z0-9_]{1,64}$/.test(String(error?.code || "")) ? String(error.code) : "UNKNOWN_ERROR";
-        const reasons = {
-          "42501": "RLSポリシーまたは操作権限を確認してください",
-          "42P01": "保存先テーブルが見つかりません",
-          "42703": "保存先の列が見つかりません",
-          "23503": "外部キー制約を確認してください",
-          "23505": "保存済みデータと重複しています",
-          AUTH_USER_CHANGED: "ログインユーザーが変わったため処理を中止しました",
-          INVALID_LOOKUP_RESPONSE: "重複確認の結果を取得できませんでした",
-          INSERT_ROW_MISMATCH: "対象の1件を保存できたことを確認できませんでした",
-          LOCAL_STORAGE_UNAVAILABLE: "現在のローカル映画データを読み取れませんでした",
-          INVALID_LOCAL_DATA: "現在のローカル映画データが正常な配列ではありません",
-          SYNC_META_INVALID_REMOTE_ID: "Supabaseから取得したUUIDを確認できませんでした",
-          SYNC_META_INVALID_REMOTE_TIME: "Supabaseから取得した更新日時を確認できませんでした",
+          // 旧編集経路の未送信データを全件再取得で上書きしない。
+          if (editedMovieUpdateQueue.size) throw { code: "LOCAL_PENDING_SYNC" };
+          if (localStorage.getItem("movieLog_sync_meta_v1") !== null) {
+            const metadata = readMovieLogSyncMetadata(userId);
+            if (Object.values(metadata.items).some((item) => item.dirty || item.pendingDelete)) {
+              throw { code: "LOCAL_PENDING_SYNC" };
+            }
+          }
         };
-        console.error(stage.startsWith("同期メタデータ") ? "❌ 同期メタデータ更新 失敗" : "❌ Supabase新規保存 失敗", {
-          code,
-          message: reasons[code] || `${stage}に失敗しました。ローカルデータは元に戻していません`,
-        });
+        assertLocalSafe();
+        const { data: authData, error: authError } = await client.auth.getUser();
+        if (authError || authData?.user?.id !== userId || !isCurrentRequest()) throw { code: "AUTH_USER_CHANGED" };
+
+        // 初回も再試行も本人の同じIDを確認し、保存済みならRPCを再送しない。
+        let savedRow = await findNewMovieRpcRow(userId, localId, isCurrentRequest);
+        if (savedRow) {
+          validateNewMovieRpcRow(savedRow, payload);
+          operation.saved = true;
+          operation.uncertain = false;
+        } else {
+          if (operation.saved) throw { code: "SAVED_ROW_MISSING" };
+          assertLocalSafe();
+          const args = Object.fromEntries(Object.entries(payload)
+            .filter(([field]) => field !== "user_id" && field !== "series_order")
+            .map(([field, value]) => [`p_${field}`, value]));
+          // await中の切断ではDBで確定済みの可能性があるため、再試行時の確認を必須にする。
+          operation.uncertain = true;
+          let response;
+          try {
+            response = await client.rpc("create_movie_log_with_series_order", args);
+            if (response.error) throw response.error;
+          } catch (rpcError) {
+            // 応答を失った場合やUNIQUE違反でも、本人の既存行を確認する。
+            savedRow = await findNewMovieRpcRow(userId, localId, isCurrentRequest);
+            if (!savedRow) {
+              const code = String(rpcError?.code || "");
+              const definiteFailure = /^[0-9A-Z]{5}$/.test(code) && code !== "23505";
+              operation.uncertain = !definiteFailure;
+              throw definiteFailure ? { code } : { code: "RPC_RESULT_UNKNOWN" };
+            }
+            validateNewMovieRpcRow(savedRow, payload);
+          }
+          if (!savedRow) {
+            // 正常なRPC応答の後は、検証・再取得が失敗してもINSERTを再送しない。
+            operation.saved = true;
+            if (!isCurrentRequest()) throw { code: "AUTH_USER_CHANGED" };
+            savedRow = validateNewMovieRpcRow(response.data?.movie, payload);
+          }
+          operation.saved = true;
+          operation.uncertain = false;
+        }
+
+        assertLocalSafe();
+        const loadedMovies = await fetchSupabaseMoviesForUser(userId, isCurrentRequest);
+        const loadedById = new Map(loadedMovies.map((item) => [item.id, item]));
+        const newMovie = loadedById.get(localId);
+        if (!newMovie || !newMoviePayloadMatches(payload, buildSupabaseMoviePayload(newMovie, userId), true)) {
+          throw { code: "SAVED_CONTENT_MISMATCH" };
+        }
+        // 新規行と、本文は同じでRPCにより公開順が変わった既存行だけを対象にする。
+        const referenceIds = [localId];
+        for (const previous of beforeMovies) {
+          const current = loadedById.get(previous.id);
+          if (current && previous.id !== localId && String(previous.seriesName || "").trim() === String(movieSnapshot.seriesName || "").trim()
+            && previous.seriesOrder !== current.seriesOrder
+            && newMoviePayloadMatches(buildSupabaseMoviePayload(previous, userId), buildSupabaseMoviePayload(current, userId), true)) {
+            referenceIds.push(previous.id);
+          }
+        }
+        const references = new Map();
+        for (let offset = 0; offset < referenceIds.length; offset += 200) {
+          const ids = referenceIds.slice(offset, offset + 200);
+          const { data, error } = await client.schema("public").from("movie_logs")
+            .select(newMovieRpcColumns).eq("user_id", userId).in("legacy_local_id", ids);
+          if (!isCurrentRequest()) throw { code: "AUTH_USER_CHANGED" };
+          if (error) throw error;
+          if (!Array.isArray(data) || data.length !== ids.length) throw { code: "INVALID_LOOKUP_RESPONSE" };
+          for (const row of data) {
+            if (!row || row.user_id !== userId || !ids.includes(row.legacy_local_id) || references.has(row.legacy_local_id)) {
+              throw { code: "RPC_ROW_MISMATCH" };
+            }
+            validateMovieLogSyncRemoteReference(row.id, row.updated_at, false);
+            const current = loadedById.get(row.legacy_local_id);
+            if (!newMoviePayloadMatches(buildSupabaseMoviePayload(current, userId),
+              buildSupabaseMoviePayload(convertSupabaseMovieRowForDisplay(row), userId))) throw { code: "REMOTE_DATA_CHANGED" };
+            references.set(row.legacy_local_id, row);
+          }
+        }
+        // 最後の認証確認から反映までawaitを挟まない。
+        const { data: currentAuth, error: currentAuthError } = await client.auth.getUser();
+        if (currentAuthError || currentAuth?.user?.id !== userId) throw { code: "AUTH_USER_CHANGED" };
+        assertLocalSafe();
+        const serialized = JSON.stringify(loadedMovies);
+        movies = loadedMovies;
+        localStorage.setItem("movieLog_movies", serialized);
+        if (localStorage.getItem("movieLog_movies") !== serialized) throw { code: "CACHE_SAVE_FAILED" };
+        let metadataMessage = "";
+        try {
+          updateMovieLogSyncMetadata(userId, (metadata) => {
+            for (const [id, row] of references) {
+              const item = metadata.items[id];
+              if (item && (item.dirty || item.pendingDelete || (item.remoteId !== null && item.remoteId !== row.id))) {
+                throw { code: "SYNC_META_CHANGED" };
+              }
+              metadata.items[id] = { ...item, remoteId: row.id, remoteUpdatedAt: row.updated_at, dirty: false, pendingDelete: false };
+            }
+            return true;
+          });
+        } catch (_) {
+          console.warn("⚠️ 新規登録は保存済みですが、同期メタデータ更新を確認できませんでした");
+          metadataMessage = "作品の登録と一覧更新は完了しましたが、同期メタデータを更新できませんでした。同期メタデータの状態を確認してください。";
+        }
+        populateYearFilter();
+        showView("list");
+        return { ok: true, message: metadataMessage };
+      } catch (error) {
+        const code = /^[A-Za-z0-9_]{1,64}$/.test(String(error?.code || "")) ? String(error.code) : "UNKNOWN_ERROR";
+        console.error("❌ 新規登録処理を完了できませんでした", { code });
+        const reasons = {
+          AUTH_USER_CHANGED: "ログイン状態または入力画面が変わったため、処理を中止しました。",
+          LOCAL_DATA_CHANGED: "処理中にローカルデータが変更されたため、上書きを中止しました。",
+          LOCAL_PENDING_SYNC: "未反映のローカル変更があります。同期状態を確認してから保存してください。",
+          SAVED_CONTENT_MISMATCH: "同じ登録IDの保存内容が一致しません。自動上書きせず中止しました。",
+          RPC_ROW_MISMATCH: "登録結果の作品IDまたはユーザーを確認できませんでした。",
+          RPC_RESULT_UNKNOWN: "通信が途切れ、保存結果を確認できませんでした。入力内容は維持しています。もう一度保存すると、同じ登録IDの保存結果を確認します。",
+          "42501": "保存権限を確認できませんでした。ログイン状態を確認してください。",
+          "22023": "入力内容を確認して、もう一度保存してください。",
+          "23505": "同じ登録IDの保存結果を確認してください。",
+        };
+        return {
+          ok: false,
+          message: operation?.saved
+            ? (reasons[code] ? reasons[code] + "\n" : "") + "作品はSupabaseに保存済みですが、一覧更新を完了できませんでした。入力画面の保存ボタンで再取得を試すか、ページを再読み込みしてください。再INSERTは行いません。"
+            : reasons[code] || "登録処理を完了できませんでした。入力内容は維持しています。通信環境を確認して、もう一度保存してください。",
+        };
       }
     }
 
-    saveNewMovieToSupabase = function (movie) {
+    saveNewMovieToSupabase = function (movie, operation) {
       let localId;
       try {
         localId = normalizeMovieLogSyncLocalId(movie?.id);
       } catch (_) {
-        // ID不正時も既存処理の安全なエラー報告をそのまま利用する。
-        return runNewMovieInsert(movie);
+        return runNewMovieInsert(movie, operation);
       }
+      const pending = newMovieInsertQueue.get(localId);
+      if (pending) return pending.promise;
       const entry = { promise: null };
-      // 既存処理は直ちに開始する。dirty設定を遅らせるawaitやqueue待機は挟まない。
-      entry.promise = runNewMovieInsert(movie).finally(() => {
-        // 後から同じIDに登録されたentryを、先行処理の終了で消さない。
+      entry.promise = runNewMovieInsert(movie, operation).finally(() => {
         if (newMovieInsertQueue.get(localId) === entry) newMovieInsertQueue.delete(localId);
       });
       newMovieInsertQueue.set(localId, entry);
       return entry.promise;
     };
-    // END new movie Supabase insert
+    // END new movie Supabase RPC save
 
     // BEGIN edited movie Supabase update (localStorage remains primary)
     function buildSupabaseMovieUpdatePayload(movie) {
