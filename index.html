@@ -10,6 +10,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Zen+Kaku+Gothic+New:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@800&family=IBM+Plex+Sans+JP:wght@400;500;600&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
       :root {
@@ -1810,6 +1811,55 @@ html:not([data-auth-state="authenticated"]) body { padding-bottom: 0 !important;
   #listView .top-page-header .top-control-pair > .movie-select:last-child { grid-column: 2; grid-row: 1; }
 }
 </style>
+<style>
+/* UI/UX第2段階：一覧画面だけのロゴ・フォント・タイポグラフィ。 */
+#listView {
+  --top-ui-font: "IBM Plex Sans JP", "Hiragino Sans", "Yu Gothic", "Meiryo", "Noto Sans JP", sans-serif;
+  font-family: var(--top-ui-font);
+}
+#listView input,
+#listView select,
+#listView button,
+#listView .movie-select-button,
+#listView .movie-select-option { font-family: var(--top-ui-font); }
+#listView #searchInput,
+#listView #sortSelect,
+#listView #genreFilter,
+#listView #detailSearchToggle { font-family: var(--top-ui-font) !important; }
+#listView .top-page-header .movie-log-brand {
+  font-family: "Barlow Condensed", "Arial Narrow", Impact, sans-serif;
+  font-weight: 800;
+  font-size: 4rem;
+  line-height: 1;
+  letter-spacing: -.01em;
+}
+#listView .movie-log-brand .logo-period { color: #b8e637; }
+#listView .movie-card-body h3 { font-size: .8125rem; font-weight: 600; line-height: 1.3; }
+#listView .movie-select-option { font-size: .875rem; }
+#listView #detailSearchPanel .text-sm { font-size: .8125rem; }
+#listView #detailSearchPanel .movie-select-button { font-size: .875rem; }
+#listView .top-page-header #statusCounts .status-stat > div:last-child,
+#listView .top-page-header #statusCounts .watch-time-stat > div:last-child,
+#listView .top-page-header #desktopStatusCounts .status-stat > div:last-child,
+#listView .top-page-header #desktopStatusCounts .watch-time-stat > div:last-child {
+  font-weight: 500;
+  letter-spacing: .06em;
+  line-height: 1.3;
+}
+#listView #sortSelect + .movie-select-button,
+#listView #genreFilter + .movie-select-button,
+#listView .top-page-header #detailSearchToggle { font-size: .875rem !important; }
+@media (min-width: 1024px) {
+  #listView .top-page-header #searchInput,
+  #listView #sortSelect + .movie-select-button,
+  #listView #genreFilter + .movie-select-button,
+  #listView .top-page-header #detailSearchToggle,
+  #listView #desktopAddBtn { font-size: .8125rem !important; }
+}
+@media (max-width: 1023px) {
+  #listView .top-page-header .movie-log-brand { font-size: 2rem !important; }
+}
+</style>
 </head>
   <body class="min-h-screen pb-24">
     <!-- ========== 認証画面 ========== -->
@@ -1844,7 +1894,7 @@ html:not([data-auth-state="authenticated"]) body { padding-bottom: 0 !important;
           class="top-header-row max-w-lg desktop-wide mx-auto px-4 py-3 flex items-center gap-3"
         >
           <h1 class="movie-log-brand text-2xl sm:text-3xl font-bold text-slate-800 tracking-tight shrink-0">
-            MOVIE LOG.
+            MOVIE LOG<span class="logo-period">.</span>
           </h1>
 
           <button
