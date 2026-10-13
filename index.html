@@ -1860,6 +1860,48 @@ html:not([data-auth-state="authenticated"]) body { padding-bottom: 0 !important;
   #listView .top-page-header .movie-log-brand { font-size: 2rem !important; }
 }
 </style>
+<style>
+/* UI/UX第3段階 STEP 3-A：一覧画面に添付の紙テクスチャを適用。 */
+#listView {
+  --top-paper-bg: #f6f5f0;
+  --top-paper-grain-opacity: .58;
+  --top-paper-grain-size: 768px 768px;
+  --top-paper-mottle-opacity: .025;
+  --top-paper-grain-image: url("assets/paper-attached.webp");
+  --top-paper-texture:
+    radial-gradient(ellipse at 18% 24%, rgba(96,83,61,var(--top-paper-mottle-opacity)) 0, transparent 65%),
+    radial-gradient(ellipse at 79% 72%, rgba(255,255,255,.45) 0, transparent 70%);
+  position: relative;
+  isolation: isolate;
+}
+#listView,
+#listView > header {
+  background-color: var(--top-paper-bg) !important;
+  background-image: var(--top-paper-texture) !important;
+  background-size: 100% 100% !important;
+  background-position: 0 0 !important;
+  background-repeat: no-repeat !important;
+}
+/* 紙の粒・繊維・折れ跡は内容の背面に置き、画像・操作欄には重ねない。 */
+#listView::before,
+#listView > header::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: var(--top-paper-grain-opacity);
+  background-image: var(--top-paper-grain-image);
+  background-size: var(--top-paper-grain-size);
+  background-repeat: repeat;
+}
+/* 一覧・下部は親の紙背景を見せる。既存の寸法・配置は維持する。 */
+#listView > main,
+#listView > section {
+  background-color: transparent !important;
+  background-image: none !important;
+}
+</style>
 </head>
   <body class="min-h-screen pb-24">
     <!-- ========== 認証画面 ========== -->
