@@ -10,7 +10,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Zen+Kaku+Gothic+New:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@800&family=IBM+Plex+Sans+JP:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800&family=IBM+Plex+Sans+JP:wght@400;500;600&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
       :root {
@@ -1901,6 +1901,384 @@ html:not([data-auth-state="authenticated"]) body { padding-bottom: 0 !important;
   background-color: transparent !important;
   background-image: none !important;
 }
+/* 下余白は紙背景の親にまとめ、一覧mainの既存余白と重複させない。 */
+#listView { padding-bottom: 32px; }
+#listView > main.desktop-wide { padding-bottom: 0; }
+@media (min-width: 1024px) {
+  #listView { padding-bottom: 64px; }
+}
+</style>
+<style>
+/* UI/UX第3段階 STEP 3-B：トップのヘッダー・統計・操作欄だけの配色。 */
+#listView {
+  --top-ui-ink: #1c1c1c;
+  --top-ui-surface: #fdfcf8;
+  --top-ui-border: #d4d0c6;
+  --top-ui-muted: #68665f;
+  --top-ui-accent: #b5ff39;
+  --top-ui-accent-hover: #a4ed2b;
+  --top-ui-selected: #eeebe4;
+}
+#listView .top-page-header { border-color: var(--top-ui-border); }
+#listView .top-page-header .movie-log-brand,
+#listView .top-page-header .movie-log-number { color: var(--top-ui-ink); }
+#listView .top-page-header .status-stat > div:last-child,
+#listView .top-page-header .watch-time-stat > div:last-child { color: var(--top-ui-muted); }
+#listView .top-page-header .watch-time-stat { position: relative; isolation: isolate; }
+#listView .top-page-header .watch-time-stat > div { position: relative; z-index: 1; }
+#listView .top-page-header .watch-time-stat > div:last-child::after { content: none; }
+#listView .top-page-header .watch-time-stat::after {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  left: 50%;
+  top: 0;
+  width: 112%;
+  max-width: 15rem;
+  aspect-ratio: 3 / 1;
+  transform: translateX(-50%);
+  background: var(--top-ui-accent);
+  /* 素材の透過を利用してライムに着色する。PNG自体は加工しない。 */
+  -webkit-mask: url("assets/watchtime-accent.png") center / contain no-repeat;
+  mask: url("assets/watchtime-accent.png") center / contain no-repeat;
+  mask-mode: alpha;
+  pointer-events: none;
+}
+@media (max-width: 1023px) {
+  #listView .top-page-header .watch-time-stat::after { top: 4px; width: 100%; max-width: 8rem; opacity: .75; }
+}
+#listView #desktopAddBtn,
+#listView #addFab {
+  background: var(--top-ui-accent) !important;
+  color: var(--top-ui-ink) !important;
+  border: 1px solid var(--top-ui-ink) !important;
+  box-shadow: 2px 2px 0 var(--top-ui-ink) !important;
+  outline: none;
+}
+#listView #desktopAddBtn { border-radius: .25rem !important; }
+#listView #desktopAddBtn:hover,
+#listView #addFab:hover { background: var(--top-ui-accent-hover) !important; }
+#listView #desktopAddBtn:active,
+#listView #addFab:active { box-shadow: 1px 1px 0 var(--top-ui-ink) !important; }
+#listView #desktopAddBtn:focus-visible,
+#listView #addFab:focus-visible {
+  outline: 2px solid var(--top-ui-ink);
+  outline-offset: 3px;
+}
+#listView #searchInput,
+#listView #sortSelect,
+#listView #genreFilter,
+#listView #sortSelect + .movie-select-button,
+#listView #genreFilter + .movie-select-button,
+#listView #detailSearchToggle {
+  background-color: var(--top-ui-surface) !important;
+  color: var(--top-ui-ink) !important;
+  border-color: var(--top-ui-border) !important;
+}
+#listView #searchInput::placeholder { color: var(--top-ui-muted) !important; }
+#listView #sortSelect + .movie-select-button::after,
+#listView #genreFilter + .movie-select-button::after { border-color: var(--top-ui-muted); }
+#listView #searchInput:focus,
+#listView #sortSelect + .movie-select-button[aria-expanded="true"],
+#listView #genreFilter + .movie-select-button[aria-expanded="true"],
+#listView .top-detail-control:has(#detailSearchPanel:not(.hidden)) #detailSearchToggle {
+  border-color: var(--top-ui-ink) !important;
+}
+#listView #searchInput:focus-visible,
+#listView #sortSelect + .movie-select-button:focus-visible,
+#listView #genreFilter + .movie-select-button:focus-visible,
+#listView #detailSearchToggle:focus-visible {
+  outline: 2px solid var(--top-ui-ink);
+  outline-offset: 2px;
+  --tw-ring-color: transparent !important;
+}
+#listView .top-control-pair .movie-select-menu {
+  background: var(--top-ui-surface);
+  border-color: var(--top-ui-border);
+}
+#listView .top-control-pair .movie-select-option { color: var(--top-ui-ink); }
+#listView .top-control-pair .movie-select-option:hover,
+#listView .top-control-pair .movie-select-option:focus-visible,
+#listView .top-control-pair .movie-select-option.is-selected {
+  background: var(--top-ui-selected);
+  color: var(--top-ui-ink);
+}
+</style>
+<style>
+/* PCトップ：完成イメージに合わせ、データ・スマホの見た目は維持する。 */
+#listView .pc-header-editorial,
+#listView .pc-user-area,
+#listView .pc-search-icon,
+#listView .pc-control-icon,
+#listView .pc-add-icon,
+#listView .pc-rating-stars,
+#listView .pc-favorite-indicator { display: none; }
+@media (min-width: 1024px) {
+  #listView { --pc-page-gutter: max(clamp(24px, 3vw, 50px), calc((100vw - 1600px) / 2)); }
+  #listView .top-page-header {
+    --pc-logo-size: clamp(110px, 8.8vw, 150px);
+    display: grid;
+    grid-template-columns: minmax(0, 36.5%) minmax(0, 21%) minmax(0, 1fr);
+    grid-template-rows: auto auto 44px;
+    column-gap: clamp(16px, 1.5vw, 25px);
+    row-gap: 14px;
+    padding: clamp(16px, 1.2vw, 20px) var(--pc-page-gutter) 0;
+    border-bottom: 0;
+  }
+  #listView .top-page-header .top-header-row {
+    grid-column: 1;
+    grid-row: 1 / 4;
+    width: 100%;
+    max-width: none;
+    height: auto;
+    align-self: end;
+    margin: 0;
+    padding: 0 12px 0 0;
+    border-right: 1px solid var(--top-ui-ink);
+    display: flex;
+    justify-content: flex-start;
+    align-items: flex-end;
+    min-width: 0;
+  }
+  #listView .top-page-header .movie-log-brand {
+    margin: 0;
+    font-size: var(--pc-logo-size);
+    line-height: .75;
+    letter-spacing: -.02em;
+    white-space: nowrap;
+    width: 100%;
+    min-width: 0;
+  }
+  #listView .pc-logo-wordmark { display: block; transform: scaleY(1.09); transform-origin: left bottom; }
+  #listView .pc-logo-wordmark .logo-period { display: inline-block; width: .14em; height: .065em; line-height: 0; overflow: hidden; color: transparent; background: var(--top-ui-accent); vertical-align: baseline; }
+  #listView .pc-header-editorial {
+    grid-column: 2;
+    grid-row: 2;
+    display: flex;
+    align-items: flex-start;
+    gap: clamp(12px, 1.2vw, 20px);
+    padding: 0;
+    color: var(--top-ui-muted);
+    min-width: 0;
+  }
+  #listView .pc-editorial-words { flex: 0 0 auto; font-size: clamp(12px, .84vw, 14px); font-weight: 600; line-height: 1.2; }
+  #listView .pc-editorial-caption {
+    position: relative;
+    margin: 12px 0 0;
+    padding-left: 18px;
+    font-size: clamp(10px, .72vw, 12px);
+    line-height: 1.7;
+    letter-spacing: .12em;
+  }
+  #listView .pc-editorial-caption::before { content: ""; position: absolute; left: 0; top: -6px; width: 1px; height: 52px; background: var(--top-ui-border); transform: skewX(-18deg); }
+  #listView .pc-user-area { grid-column: 1; grid-row: 1; justify-self: start; display: flex; align-items: center; gap: 8px; color: var(--top-ui-ink); }
+  #listView .pc-user-area .pc-user-avatar { width: 28px; height: 28px; }
+  #listView .pc-user-name { font-size: 14px; font-weight: 400; line-height: 1.4; }
+  #listView .top-page-header #desktopStatusCounts {
+    grid-column: 3;
+    grid-row: 2;
+    padding: 0;
+    align-self: end;
+    margin: 0;
+    width: 100%;
+    max-width: none;
+    grid-template-columns: minmax(0, .95fr) minmax(0, 1fr) minmax(0, 1.05fr) minmax(0, 1.35fr);
+    gap: 0;
+    align-items: center;
+    margin-bottom: 4px;
+  }
+  #listView .top-page-header #desktopStatusCounts > div + div { border-left: 1px solid var(--top-ui-border); }
+  #listView #desktopStatusCounts .movie-log-number { font-family: "Barlow Condensed", "Arial Narrow", Arial, sans-serif; font-weight: 700; font-size: clamp(26px, 2.2vw, 36px) !important; line-height: 1.1; white-space: nowrap; }
+  #listView #desktopStatusCounts .watch-time-stat { padding-left: clamp(8px, .6vw, 12px); }
+  #listView #desktopStatusCounts .watch-time-stat .movie-log-number { letter-spacing: .02em; }
+  #listView #desktopStatusCounts .watch-time-stat::after {
+    top: auto;
+    bottom: -8px;
+    width: 120%;
+    max-width: 16rem;
+    aspect-ratio: 1984 / 320;
+    /* 原寸2172×724の筆跡領域（x49・y248・幅1984・高さ320）だけを表示する。 */
+    -webkit-mask: url("assets/watchtime-line2.png") calc(100% * 49 / 188) calc(100% * 248 / 404) / calc(100% * 2172 / 1984) calc(100% * 724 / 320) no-repeat;
+    mask: url("assets/watchtime-line2.png") calc(100% * 49 / 188) calc(100% * 248 / 404) / calc(100% * 2172 / 1984) calc(100% * 724 / 320) no-repeat;
+    mask-mode: alpha;
+  }
+  #listView .top-page-header #desktopStatusCounts .status-stat > div:last-child,
+  #listView .top-page-header #desktopStatusCounts .watch-time-stat > div:last-child { font-size: clamp(11px, .84vw, 14px) !important; color: var(--top-ui-ink); letter-spacing: .01em; }
+  #listView .top-page-header .desktop-controls {
+    grid-column: 2 / 4;
+    grid-row: 3;
+    width: 100%;
+    justify-self: end;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1.55fr) minmax(0, 2.05fr) 44px 44px;
+    gap: 10px;
+    align-items: stretch;
+  }
+  #listView .top-page-header .desktop-controls > .top-control-pair { grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 10px; }
+  #listView .top-page-header .desktop-controls > div { min-width: 0; padding: 0; margin: 0; width: 100%; max-width: none; }
+  #listView #searchBar { position: relative; }
+  #listView .pc-search-icon { display: block; position: absolute; left: 13px; top: 50%; transform: translateY(-50%); width: 21px; height: 21px; color: var(--top-ui-ink); pointer-events: none; }
+  #listView .top-page-header #searchInput,
+  #listView #sortSelect + .movie-select-button,
+  #listView #genreFilter + .movie-select-button,
+  #listView .top-page-header #detailSearchToggle,
+  #listView #desktopAddBtn {
+    height: 44px !important;
+    min-height: 44px;
+    border-radius: .25rem !important;
+    font-size: 13px !important;
+    border-color: var(--top-ui-ink) !important;
+  }
+  #listView .top-page-header #searchInput { padding-left: 43px; }
+  #listView .top-page-header .top-control-pair .movie-select-button > .movie-select-label { text-overflow: ellipsis; }
+  #listView .top-page-header #detailSearchToggle { padding: 0 !important; display: flex !important; align-items: center !important; justify-content: center !important; }
+  #listView #desktopAddBtn { width: 44px !important; padding: 0; justify-self: stretch; }
+  #listView #detailSearchToggle .control-text-label,
+  #listView #desktopAddBtn .control-text-label { display: none; }
+  #listView .pc-control-icon { display: block; width: 24px; height: 24px; }
+  #listView .pc-add-icon { display: block; font-size: 28px; font-weight: 500; line-height: 1; }
+  #listView > main.desktop-wide {
+    width: calc(100% - var(--pc-page-gutter) - var(--pc-page-gutter)) !important;
+    max-width: 1600px !important;
+    margin: 0 auto !important;
+    padding: 24px 0 0 !important;
+    box-shadow: none;
+  }
+  #listView #movieGrid { grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 20px clamp(16px, 1.6vw, 28px); }
+  #listView .movie-card { overflow: visible; }
+  #listView .movie-card .movie-card-poster { border: 1.5px solid var(--top-ui-ink); border-radius: 1px; box-shadow: none !important; }
+  #listView .movie-card .movie-card-body { padding: .4rem 0 .3rem; text-align: left; }
+  #listView .movie-card .movie-card-body h3 { display: block; font-size: clamp(13px, 1vw, 16px); font-weight: 600; line-height: 1.4; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #listView .movie-card .movie-card-body > div { justify-content: flex-start; min-height: 22px; }
+  #listView .movie-card .movie-card-status-group { gap: 6px; flex: 0 0 auto; }
+  #listView .movie-card .movie-card-status-label { display: inline-flex; align-items: center; height: 18px; padding: 0 4px; border: 1px solid var(--top-ui-ink); border-radius: 1px; font-family: var(--top-ui-font); font-size: 10px; font-weight: 600; line-height: 1; white-space: nowrap; flex: 0 0 auto; box-shadow: none; }
+  #listView .movie-card .movie-card-status-watching { background: var(--top-ui-ink) !important; color: var(--top-ui-accent) !important; }
+  #listView .movie-card .movie-card-status-unwatched { background: transparent !important; border-color: #555; color: #555 !important; }
+  #listView .legacy-rating-stars,
+  #listView .legacy-favorite-heart { display: none; }
+  #listView .pc-rating-stars { display: inline-block; position: relative; color: var(--top-ui-ink); font-size: 13px; letter-spacing: .05em; line-height: 1.2; white-space: nowrap; }
+  #listView .pc-rating-stars::after { content: "★★★★★"; position: absolute; inset: 0 auto 0 0; color: var(--top-ui-ink); width: clamp(0%, calc(var(--card-rating) * 20%), 100%); white-space: nowrap; overflow: hidden; }
+  #listView .pc-favorite-indicator { display: inline-flex; margin-left: auto; flex: 0 0 auto; align-items: center; pointer-events: none; }
+  #listView .pc-favorite-indicator svg { width: 20px; height: 20px; fill: none; stroke: var(--top-ui-ink); stroke-width: 1.05; }
+  #listView .pc-favorite-indicator[data-favorite="true"] svg { fill: var(--top-ui-accent); }
+  #listView > section { border-top: 0; }
+}
+@media (min-width: 1024px) and (hover: hover) and (pointer: fine) {
+  #listView .movie-card .movie-card-poster:hover { box-shadow: 3px 3px 0 var(--top-ui-ink) !important; }
+}
+@media (min-width: 1024px) and (max-width: 1279px) {
+  #listView .top-page-header { --pc-logo-size: clamp(100px, calc(68px + 3.5vw), 113px); grid-template-columns: minmax(0, calc(var(--pc-logo-size) * 3.8 + 12px)) minmax(0, clamp(192px, 19vw, 244px)) minmax(0, 1fr); row-gap: 12px; }
+  #listView .pc-header-editorial { gap: 8px; }
+  #listView .pc-editorial-words { font-size: 11px; }
+  #listView .pc-editorial-caption { font-size: 8.5px; letter-spacing: .04em; padding-left: 10px; }
+  #listView .top-page-header #desktopStatusCounts { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.95fr); }
+  #listView .top-page-header .desktop-controls { width: 100%; grid-template-columns: minmax(0, 1.55fr) minmax(0, 2.4fr) 44px 44px; gap: 8px; }
+  #listView .top-page-header .desktop-controls > .top-control-pair { gap: 8px; }
+  #listView .top-page-header #searchInput,
+  #listView #sortSelect + .movie-select-button,
+  #listView #genreFilter + .movie-select-button,
+  #listView .top-page-header #detailSearchToggle,
+  #listView #desktopAddBtn { height: 44px !important; min-height: 44px; font-size: 12px !important; }
+  #listView #desktopAddBtn { width: 44px !important; }
+  #listView > main.desktop-wide { padding-top: 22px !important; }
+  #listView #movieGrid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+}
+</style>
+<style>
+/* STEP 4-D：アカウント操作だけを重ねて表示し、既存ヘッダーの寸法は保つ。 */
+#listView .pc-user-area { position: relative; z-index: 40; }
+#listView .account-menu-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--top-ui-ink);
+  cursor: pointer;
+}
+#listView .account-menu-trigger:hover .pc-user-name { text-decoration: underline; text-underline-offset: 3px; }
+#listView .account-menu-chevron { width: 14px; height: 14px; flex: 0 0 auto; }
+#listView .account-menu-trigger:focus-visible,
+#listView .account-menu-action:focus-visible { outline: 2px solid var(--top-ui-ink); outline-offset: 3px; }
+#listView .account-menu-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  width: 185px;
+  max-width: calc(100vw - 32px);
+}
+#listView .account-menu,
+#listView .account-menu-submenu {
+  padding: 6px;
+  border: 1px solid var(--top-ui-border);
+  border-radius: 8px;
+  background: var(--top-paper-bg);
+  display: grid;
+  gap: 6px;
+}
+#listView .account-menu[hidden],
+#listView .account-menu-submenu[hidden] { display: none; }
+#listView .account-menu-item { position: relative; }
+#listView .account-menu-submenu {
+  position: absolute;
+  top: -7px;
+  left: calc(100% + 12px);
+  width: 210px;
+}
+#listView .account-menu-action {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 6px;
+  border: 1px solid var(--top-ui-border);
+  border-radius: 6px;
+  background: var(--top-paper-bg);
+  color: var(--top-ui-ink);
+  /* 作品タイトルの基本サイズ（.8125rem）に合わせる。 */
+  font-size: .8125rem;
+  font-weight: 500;
+  line-height: 1.5;
+  text-align: left;
+  cursor: pointer;
+}
+#listView .account-menu-action:hover,
+#listView .account-menu-action:focus-visible { background: #e7f5cc; }
+#listView .account-menu-action:disabled { opacity: .6; cursor: wait; }
+#listView .account-menu-icon { width: 16px; height: 16px; flex: 0 0 auto; }
+#listView .account-submenu-chevron { width: 14px; height: 14px; margin-left: auto; flex: 0 0 auto; }
+/* 既存のログアウトエラーは、メニューを閉じた後も起点のそばに表示する。 */
+#listView .pc-user-area #authLogoutMessage {
+  margin: 0;
+  padding: 12px;
+  border: 1px solid var(--top-ui-border);
+  border-radius: 10px;
+  background: var(--top-paper-bg);
+  font-size: 12px;
+  line-height: 1.6;
+}
+#listView .account-menu:not([hidden]) + #authLogoutMessage { margin-top: 8px; }
+@media (min-width: 1024px) {
+  /* PCの作品タイトルと同じ文字サイズ・検索欄と同じ枠色に揃える。 */
+  #listView .account-menu-action { font-size: clamp(13px, 1vw, 16px); }
+  #listView .account-menu,
+  #listView .account-menu-submenu,
+  #listView .account-menu-action { border-color: var(--top-ui-ink); }
+}
+@media (max-width: 1023px) {
+  #listView .pc-user-area { display: block; position: absolute; top: 10px; right: .8rem; }
+  #listView .account-menu-trigger { height: 44px; gap: 6px; }
+  #listView .pc-user-avatar { width: 24px; height: 24px; }
+  #listView .pc-user-name { font-size: 13px; font-weight: 400; line-height: 1.4; }
+  #listView .account-menu-popover { left: auto; right: 0; }
+  #listView .account-menu-submenu { position: static; width: 100%; margin-top: 6px; padding: 0; border: 0; border-radius: 0; }
+}
 </style>
 </head>
   <body class="min-h-screen pb-24">
@@ -1936,7 +2314,7 @@ html:not([data-auth-state="authenticated"]) body { padding-bottom: 0 !important;
           class="top-header-row max-w-lg desktop-wide mx-auto px-4 py-3 flex items-center gap-3"
         >
           <h1 class="movie-log-brand text-2xl sm:text-3xl font-bold text-slate-800 tracking-tight shrink-0">
-            MOVIE LOG<span class="logo-period">.</span>
+            <span class="pc-logo-wordmark">MOVIE LOG<span class="logo-period">.</span></span>
           </h1>
 
           <button
@@ -1959,6 +2337,48 @@ html:not([data-auth-state="authenticated"]) body { padding-bottom: 0 !important;
             </svg>
           </button>
           
+        </div>
+        <div class="pc-header-editorial">
+          <div class="pc-editorial-words" aria-hidden="true">MOVIES<br>PEOPLE<br>STORIES<br>ALWAYS HERE.</div>
+          <p class="pc-editorial-caption" aria-hidden="true">A BETTER PLACE<br>FOR MOVIE LOVERS.</p>
+        </div>
+        <!-- STEP 4-A：デザイン確認用の仮表示。認証ユーザーの正式な表示名ではない。 -->
+        <div class="pc-user-area" data-design-preview="true">
+          <button id="accountMenuToggle" type="button" class="account-menu-trigger" aria-expanded="false" aria-controls="accountMenu" aria-label="アカウントメニュー（表示名 Noko は仮表示）" title="表示名はデザイン確認用の仮表示です">
+            <svg class="pc-user-avatar" viewBox="0 0 32 32" width="32" height="32" aria-hidden="true"><circle cx="16" cy="16" r="14" fill="none" stroke="currentColor" stroke-width="1.2"/><circle cx="16" cy="12" r="4" fill="currentColor"/><path d="M8.5 24c.6-4 3.1-6 7.5-6s6.9 2 7.5 6Z" fill="currentColor"/></svg>
+            <span class="pc-user-name" aria-hidden="true">Noko</span>
+            <!-- Lucide Icons：assets/lucide-LICENSE.txt -->
+            <svg class="account-menu-chevron" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+          <div class="account-menu-popover">
+          <div id="accountMenu" class="account-menu" role="group" aria-label="アカウント操作" hidden>
+            <div class="account-menu-item">
+              <button id="dataManagementToggle" type="button" class="account-menu-action" aria-expanded="false" aria-controls="dataManagementPanel">
+                <svg class="account-menu-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></svg>
+                <span>データ管理</span>
+                <svg class="account-submenu-chevron" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+              </button>
+              <div id="dataManagementPanel" class="account-menu-submenu" role="group" aria-label="データ管理" hidden>
+                <button id="backupSaveBtn" type="button" class="account-menu-action">
+                  <svg class="account-menu-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/></svg>
+                  <span>バックアップを保存</span>
+                </button>
+                <button id="backupRestoreBtn" type="button" class="account-menu-action">
+                  <svg class="account-menu-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m17 8-5-5-5 5"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/></svg>
+                  <span>バックアップから復元</span>
+                </button>
+                <input id="backupFileInput" type="file" accept="application/json,.json" class="hidden" />
+              </div>
+            </div>
+            <div class="account-menu-item">
+              <button id="authLogoutBtn" type="button" class="account-menu-action">
+                <svg class="account-menu-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/></svg>
+                <span>ログアウト</span>
+              </button>
+            </div>
+          </div>
+          <p id="authLogoutMessage" class="hidden text-xs" role="status" aria-live="polite"></p>
+          </div>
         </div>
           <!-- 視聴状況の件数（情報表示のみ・クリック不可） -->
           <div id="statusCounts" class="flex-1 flex items-center justify-center gap-2 sm:gap-4 text-center min-w-0" aria-label="視聴状況の件数">
@@ -2001,6 +2421,7 @@ html:not([data-auth-state="authenticated"]) body { padding-bottom: 0 !important;
         <div class="desktop-controls">
         <!-- 検索バー -->
         <div id="searchBar" class="hidden max-w-lg desktop-wide mx-auto px-4 pb-3 lg:block">
+          <svg class="pc-search-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="m15.5 15.5 5 5" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
           <input
             id="searchInput"
             type="text"
@@ -2050,7 +2471,7 @@ html:not([data-auth-state="authenticated"]) body { padding-bottom: 0 !important;
 
         <!-- 詳細検索 -->
         <div class="top-detail-control max-w-lg desktop-wide mx-auto px-4 pb-3">
-          <button id="detailSearchToggle" type="button" class="vintage-control w-full px-4 py-2.5 rounded-xl bg-slate-100 text-slate-700 font-normal hover:bg-slate-200">詳細検索</button>
+          <button id="detailSearchToggle" type="button" aria-label="詳細検索" title="詳細検索" class="vintage-control w-full px-4 py-2.5 rounded-xl bg-slate-100 text-slate-700 font-normal hover:bg-slate-200"><span class="control-text-label">詳細検索</span><svg class="pc-control-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h18" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="8" cy="6" r="2" fill="currentColor"/><circle cx="16" cy="12" r="2" fill="currentColor"/><circle cx="10" cy="18" r="2" fill="currentColor"/></svg></button>
           <div id="detailSearchPanel" class="hidden mt-2 p-4 bg-white rounded-2xl border border-gray-200">
             <p class="text-sm font-semibold text-slate-700 mb-2">視聴状況</p>
             <div class="flex gap-2 overflow-x-auto">
@@ -2105,7 +2526,7 @@ html:not([data-auth-state="authenticated"]) body { padding-bottom: 0 !important;
             <button id="clearDetailSearchBtn" type="button" class="mt-4 w-full border border-gray-300 text-slate-600 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50">条件をクリア</button>
           </div>
         </div>
-        <button id="desktopAddBtn" type="button" class="hidden lg:flex text-sm font-medium shrink-0">＋ 作品を追加</button>
+        <button id="desktopAddBtn" type="button" aria-label="作品を追加" title="作品を追加" class="hidden lg:flex text-sm font-medium shrink-0"><span class="control-text-label">＋ 作品を追加</span><span class="pc-add-icon" aria-hidden="true">＋</span></button>
         </div>
 
       </header>
@@ -2126,21 +2547,6 @@ html:not([data-auth-state="authenticated"]) body { padding-bottom: 0 !important;
           <p class="text-sm mt-1">「＋」から追加してみよう</p>
         </div>
       </main>
-
-      <!-- データ管理（普段は控えめに表示） -->
-      <section class="mx-auto px-4 pb-5 pt-2">
-        <button id="dataManagementToggle" type="button" class="data-management-toggle text-xs py-2" aria-expanded="false">データ管理</button>
-        <button id="authLogoutBtn" type="button" class="data-management-toggle text-xs py-2 float-right">ログアウト</button>
-        <p id="authLogoutMessage" class="hidden text-xs" role="status" aria-live="polite"></p>
-        <div id="dataManagementPanel" class="data-management-panel hidden mt-1 pt-3 pb-1 max-w-md">
-          <p class="text-xs text-slate-500 mb-3">登録した作品データをファイルに保存・復元できます。</p>
-          <div class="flex flex-wrap gap-2">
-            <button id="backupSaveBtn" type="button" class="vintage-control border border-gray-300 bg-white text-slate-700 py-2 px-3 rounded-xl text-xs font-medium active:bg-gray-50">バックアップを保存</button>
-            <button id="backupRestoreBtn" type="button" class="vintage-control border border-gray-300 bg-white text-slate-700 py-2 px-3 rounded-xl text-xs font-medium active:bg-gray-50">バックアップから復元</button>
-          </div>
-          <input id="backupFileInput" type="file" accept="application/json,.json" class="hidden" />
-        </div>
-      </section>
 
       <!-- FAB 追加ボタン -->
       <button
@@ -2667,6 +3073,82 @@ html:not([data-auth-state="authenticated"]) body { padding-bottom: 0 !important;
         document.querySelectorAll("select").forEach((select) => syncMovieSelect(select));
       }
 
+      // アカウントメニューの表示操作のみ。データ管理・認証は既存ボタンを再利用する。
+      function setupAccountMenu() {
+        const area = document.querySelector("#listView .pc-user-area");
+        const toggle = document.getElementById("accountMenuToggle");
+        const menu = document.getElementById("accountMenu");
+        const dataToggle = document.getElementById("dataManagementToggle");
+        const submenu = document.getElementById("dataManagementPanel");
+        const items = () => [...menu.querySelectorAll(":scope > .account-menu-item > button:not(:disabled)")];
+        const submenuItems = () => [...submenu.querySelectorAll("button:not(:disabled)")];
+        const setSubmenuOpen = (open, restoreFocus = false) => {
+          submenu.hidden = !open;
+          dataToggle.setAttribute("aria-expanded", String(open));
+          if (restoreFocus) dataToggle.focus({ preventScroll: true });
+        };
+        const setOpen = (open, restoreFocus = false) => {
+          menu.hidden = !open;
+          toggle.setAttribute("aria-expanded", String(open));
+          if (!open) setSubmenuOpen(false);
+          if (restoreFocus) toggle.focus({ preventScroll: true });
+        };
+        toggle.addEventListener("click", () => setOpen(menu.hidden));
+        dataToggle.addEventListener("click", () => setSubmenuOpen(submenu.hidden));
+        toggle.addEventListener("keydown", (event) => {
+          if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+          event.preventDefault();
+          setOpen(true);
+          const buttons = items();
+          (event.key === "ArrowDown" ? buttons[0] : buttons[buttons.length - 1])?.focus({ preventScroll: true });
+        });
+        menu.addEventListener("click", (event) => {
+          const button = event.target.closest("button");
+          if (!menu.hidden && button && button !== dataToggle && !button.disabled) setOpen(false, true);
+        }, true);
+        menu.addEventListener("keydown", (event) => {
+          const inSubmenu = submenu.contains(document.activeElement);
+          if (event.key === "ArrowRight" && document.activeElement === dataToggle) {
+            event.preventDefault();
+            setSubmenuOpen(true);
+            submenuItems()[0]?.focus({ preventScroll: true });
+            return;
+          }
+          if (event.key === "ArrowLeft" && inSubmenu) {
+            event.preventDefault();
+            setSubmenuOpen(false, true);
+            return;
+          }
+          const buttons = inSubmenu ? submenuItems() : items();
+          const index = buttons.indexOf(document.activeElement);
+          let next;
+          if (event.key === "ArrowDown") next = (index + 1) % buttons.length;
+          if (event.key === "ArrowUp") next = (index - 1 + buttons.length) % buttons.length;
+          if (event.key === "Home") next = 0;
+          if (event.key === "End") next = buttons.length - 1;
+          if (next === undefined) return;
+          event.preventDefault();
+          buttons[next]?.focus({ preventScroll: true });
+        });
+        // 既存の検索UIがクリックの伝播を止めても、外側クリックを検出する。
+        document.addEventListener("click", (event) => {
+          if (!area.contains(event.target)) setOpen(false);
+        }, true);
+        document.addEventListener("focusin", (event) => {
+          if (!area.contains(event.target)) setOpen(false);
+        });
+        document.addEventListener("keydown", (event) => {
+          if (event.key === "Escape" && !menu.hidden) {
+            event.preventDefault();
+            if (!submenu.hidden) setSubmenuOpen(false, true);
+            else setOpen(false, true);
+          }
+        });
+        new MutationObserver(() => {
+          if (document.documentElement.dataset.authState !== "authenticated") setOpen(false);
+        }).observe(document.documentElement, { attributes: true, attributeFilter: ["data-auth-state"] });
+      }
+
       // ===================== 初期化 =====================
       function init() {
         const sortSelect = document.getElementById("sortSelect");
@@ -2685,6 +3167,7 @@ html:not([data-auth-state="authenticated"]) body { padding-bottom: 0 !important;
       }
 
       function setupEvents() {
+        setupAccountMenu();
         // 詳細検索の開閉
         const detailSearchToggle = document.getElementById("detailSearchToggle");
         const detailSearchPanel = document.getElementById("detailSearchPanel");
@@ -2850,15 +3333,6 @@ html:not([data-auth-state="authenticated"]) body { padding-bottom: 0 !important;
         // 上映時間は数字のみ入力
         document.getElementById("runtimeInput").addEventListener("input", (e) => {
           e.target.value = e.target.value.replace(/\D/g, "");
-        });
-
-        // データ管理の開閉
-        document.getElementById("dataManagementToggle").addEventListener("click", () => {
-          const panel = document.getElementById("dataManagementPanel");
-          const toggle = document.getElementById("dataManagementToggle");
-          const willOpen = panel.classList.contains("hidden");
-          panel.classList.toggle("hidden", !willOpen);
-          toggle.setAttribute("aria-expanded", willOpen ? "true" : "false");
         });
 
         // バックアップ
@@ -3134,15 +3608,15 @@ html:not([data-auth-state="authenticated"]) body { padding-bottom: 0 !important;
           let statusHtml = "";
           if (movie.status === "watched") {
             const rating = movie.rating || 0;
-            statusHtml = `<div class="text-xs" style="color:#d4a514">${"★".repeat(rating)}${"☆".repeat(5 - rating)}</div>`;
+            statusHtml = `<div class="text-xs" style="color:#d4a514"><span class="legacy-rating-stars">${"★".repeat(rating)}${"☆".repeat(5 - rating)}</span><span class="pc-rating-stars" style="--card-rating:${Number(rating) || 0}" role="img" aria-label="評価 ${escapeHtml(String(rating))} / 5">☆☆☆☆☆</span></div>`;
           } else if (movie.status === "watching") {
             const rating = movie.rating || 0;
             const ratingHtml = rating > 0
-              ? `<span class="text-xs" style="color:#d4a514">${"★".repeat(rating)}${"☆".repeat(5 - rating)}</span>`
+              ? `<span class="text-xs" style="color:#d4a514"><span class="legacy-rating-stars">${"★".repeat(rating)}${"☆".repeat(5 - rating)}</span><span class="pc-rating-stars" style="--card-rating:${Number(rating) || 0}" role="img" aria-label="評価 ${escapeHtml(String(rating))} / 5">☆☆☆☆☆</span></span>`
               : "";
-            statusHtml = `<div class="flex items-center gap-2"><span class="mobile-watching-status inline-block text-[10px] px-2 py-0.5 rounded-full" style="background-color:#E4E4D5;color:#66705A">視聴中</span>${ratingHtml}</div>`;
+            statusHtml = `<div class="movie-card-status-group flex items-center gap-2">${ratingHtml}<span class="mobile-watching-status movie-card-status-label movie-card-status-watching inline-block text-[10px] px-2 py-0.5 rounded-full" style="background-color:#E4E4D5;color:#66705A">視聴中</span></div>`;
           } else {
-            statusHtml = `<span class="inline-block text-[10px] px-2 py-0.5 rounded-full" style="background-color:#E8E3DA;color:#777168">未視聴</span>`;
+            statusHtml = `<span class="movie-card-status-label movie-card-status-unwatched inline-block text-[10px] px-2 py-0.5 rounded-full" style="background-color:#E8E3DA;color:#777168">未視聴</span>`;
           }
 
           card.innerHTML = `
@@ -3156,7 +3630,8 @@ html:not([data-auth-state="authenticated"]) body { padding-bottom: 0 !important;
             <h3 class="font-semibold text-sm text-slate-800 line-clamp-2 leading-tight mb-1">${escapeHtml(movie.title)}</h3>
             <div class="flex items-center gap-1.5">
               ${statusHtml}
-              ${movie.favorite ? '<span class="text-sm leading-none" style="color:#a33a42" title="お気に入り" aria-label="お気に入り">♥</span>' : ''}
+              ${movie.favorite ? '<span class="legacy-favorite-heart text-sm leading-none" style="color:#a33a42" title="お気に入り" aria-label="お気に入り">♥</span>' : ''}
+              <span class="pc-favorite-indicator" data-favorite="${movie.favorite ? 'true' : 'false'}" role="img" aria-label="${movie.favorite ? 'お気に入り' : 'お気に入り未設定'}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 4.6a5.4 5.4 0 0 0-7.6 0L12 5.8l-1.2-1.2a5.4 5.4 0 0 0-7.6 7.6L12 21l8.8-8.8a5.4 5.4 0 0 0 0-7.6Z"/></svg></span>
             </div>
           </div>
         `;
