@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="180" height="122" viewBox="0 0 180 122" fill="none" role="img" aria-labelledby="title desc">
+  <title id="title">Filmstrip</title>
+  <desc id="desc">A minimal transparent two-frame filmstrip outlined in warm greige, with one lime-colored sprocket hole.</desc>
+  <!-- Movie Log BACK greige; keep the visible stroke consistent at every display size. -->
+  <style>path, rect { vector-effect: non-scaling-stroke; }</style>
+  <g stroke="#68665F" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Film edges. The clear interior remains fully transparent. -->
+    <path d="M5 5H175V29H166C161.5 29 159 32.5 159 38V84C159 89.5 161.5 93 166 93H175V117H5V93H14C18.5 93 21 89.5 21 84V38C21 32.5 18.5 29 14 29H5Z" />
+    <!-- Two picture frames. -->
+    <rect x="30" y="33" width="55" height="57" rx="1.5" />
+    <rect x="95" y="33" width="55" height="57" rx="1.5" />
+    <!-- Top sprocket holes: only the third one uses lime. -->
+    <rect x="20" y="13" width="9" height="9" rx="1" />
+    <rect x="42" y="13" width="9" height="9" rx="1" />
+    <rect x="64" y="13" width="9" height="9" rx="1" fill="#A8FF00" />
+    <rect x="86" y="13" width="9" height="9" rx="1" />
+    <rect x="108" y="13" width="9" height="9" rx="1" />
+    <rect x="130" y="13" width="9" height="9" rx="1" />
+    <rect x="152" y="13" width="9" height="9" rx="1" />
+    <!-- Bottom sprocket holes. -->
+    <rect x="20" y="100" width="9" height="9" rx="1" />
+    <rect x="42" y="100" width="9" height="9" rx="1" />
+    <rect x="64" y="100" width="9" height="9" rx="1" />
+    <rect x="86" y="100" width="9" height="9" rx="1" />
+    <rect x="108" y="100" width="9" height="9" rx="1" />
+    <rect x="130" y="100" width="9" height="9" rx="1" />
+    <rect x="152" y="100" width="9" height="9" rx="1" />
+  </g>
+</svg>
