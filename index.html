@@ -4659,6 +4659,10 @@ body:has(#detailView:not(.hidden)) { padding-bottom: 0 !important; }
       let titleSearchRequestId = 0;
       let newFormFetchVersion = 0;
       let newFormPendingDetails = null;
+      const TMDB_DETAILS_TIMEOUT_MS = 30000;
+      let newFormAutoValues = {};
+      let newFormSelectionKey = null;
+      const newFormManualFields = new Set();
       let newFormManualPoster = false;
       let newFormPosterRevision = 0;
       let entryMovieFormLayout = null;
@@ -5243,6 +5247,7 @@ body:has(#detailView:not(.hidden)) { padding-bottom: 0 !important; }
           const option = button(name, "new-genre-option"); option.dataset.genre = name;
           option.addEventListener("click", () => {
             newFormManualMetadata = true;
+            markNewFormManualField("genreInput");
             selectedGenres = selectedGenres.includes(name) ? selectedGenres.filter((g) => g !== name) : [...selectedGenres, name];
             updateGenreButtons();
           });
@@ -5418,6 +5423,7 @@ body:has(#detailView:not(.hidden)) { padding-bottom: 0 !important; }
               const remove = button("×", "", `${name}を選択解除`);
               remove.addEventListener("click", () => {
                 newFormManualMetadata = true;
+                markNewFormManualField("genreInput");
                 const index = selectedGenres.indexOf(name); selectedGenres = selectedGenres.filter((g) => g !== name); updateGenreButtons();
                 (tags.children[Math.min(index, tags.children.length - 1)]?.querySelector("button") || genre.trigger).focus({ preventScroll: true });
               }); tag.appendChild(remove); tags.appendChild(tag);
@@ -5458,11 +5464,17 @@ body:has(#detailView:not(.hidden)) { padding-bottom: 0 !important; }
         });
         form.addEventListener("click", () => { if (isActiveForm()) requestAnimationFrame(() => { fitMenu(); syncNewMovieFormClearButtons(); }); }, true);
         form.addEventListener("input", (event) => {
-          if (isActiveForm() && ["synopsisInput", "thumbnailInput", "yearInput", "runtimeInput", "countryInput", "directorInput", "writerInput", "castInput"].includes(event.target.id)) newFormManualMetadata = true;
+          if (isActiveForm() && ["synopsisInput", "thumbnailInput", "yearInput", "runtimeInput", "countryInput", "directorInput", "writerInput", "castInput"].includes(event.target.id)) {
+            newFormManualMetadata = true;
+            markNewFormManualField(event.target.id);
+          }
           syncNewMovieFormClearButtons();
         });
         form.addEventListener("change", (event) => {
-          if (isActiveForm() && event.target.id === "yearInput") newFormManualMetadata = true;
+          if (isActiveForm() && event.target.id === "yearInput") {
+            newFormManualMetadata = true;
+            markNewFormManualField("yearInput");
+          }
         });
         form.addEventListener("change", syncNewMovieFormClearButtons);
         form.addEventListener("keydown", (event) => {
@@ -5806,7 +5818,7 @@ body:has(#detailView:not(.hidden)) { padding-bottom: 0 !important; }
         const titleSuggestions = document.getElementById("titleSuggestions");
         titleInput.addEventListener("input", () => {
           if (isEntryMovieForm()) {
-            newFormFetchVersion++;
+            cancelNewFormDetails();
             titleSearchRequestId++;
             if (isNewMovieForm()) window.currentMediaType = null;
             document.getElementById("fetchStatus").classList.add("hidden");
@@ -5994,6 +6006,7 @@ body:has(#detailView:not(.hidden)) { padding-bottom: 0 !important; }
 
       // ===================== ビュー切り替え =====================
       function showView(view) {
+        if (view !== "form") cancelNewFormDetails();
         document.getElementById("listView").classList.add("hidden");
         document.getElementById("detailView").classList.add("hidden");
         document.getElementById("formView").classList.add("hidden");
@@ -6328,9 +6341,11 @@ body:has(#detailView:not(.hidden)) { padding-bottom: 0 !important; }
         }
         movieEditSession = editSession;
         clearFormSaveFeedback();
-        newFormFetchVersion++;
+        cancelNewFormDetails();
         titleSearchRequestId++;
-        newFormPendingDetails = null;
+        newFormAutoValues = {};
+        newFormSelectionKey = null;
+        newFormManualFields.clear();
         newFormManualPoster = false;
         newFormFetchedValues = null;
         newFormManualMetadata = false;
@@ -6537,6 +6552,7 @@ body:has(#detailView:not(.hidden)) { padding-bottom: 0 !important; }
       async function saveMovie(event) {
         event?.preventDefault?.();
         if (formSaveRequest || newMovieSaveRunning || movieEditSavingIds.size
+          || (isNewMovieForm() && isNewFormDetailsPending())
           || document.getElementById("formView").classList.contains("hidden")) return;
         // 最初のawaitより前に全保存経路をロックする。検証中も重複起動させない。
         const request = { editId: editingId, session: movieEditSession,
@@ -6556,12 +6572,14 @@ body:has(#detailView:not(.hidden)) { padding-bottom: 0 !important; }
             document.getElementById("formView").dataset.saveState = request.state === "saving" ? "idle" : request.state;
             document.getElementById("formSaveStatus").textContent = "";
             formSaveRequest = null;
+            syncNewFormRetry();
           }
         }
       }
 
       async function saveMovieAttempt(request) {
         if (!request || formSaveRequest !== request) return;
+        if (!editingId && isNewFormDetailsPending()) return;
         if (!editingId && newMovieSaveRunning) return;
         if (editingId && movieEditSavingIds.has(String(editingId))) return;
         // 保存済みなら入力値の再検証・再送をせず、正式一覧の再取得だけを行う。
@@ -7037,13 +7055,14 @@ body:has(#detailView:not(.hidden)) { padding-bottom: 0 !important; }
       }
 
       // ===================== ポスター自動取得（TMDb） =====================
-      async function callTmdbFunction(payload) {
+      async function callTmdbFunction(payload, signal) {
         const response = await fetch(TMDB_FUNCTION_URL, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
           body: JSON.stringify(payload),
+          signal,
         });
 
         const data = await response.json();
@@ -7133,12 +7152,55 @@ body:has(#detailView:not(.hidden)) { padding-bottom: 0 !important; }
         return Object.fromEntries(["synopsisInput", "thumbnailInput", "yearInput", "runtimeInput", "countryInput", "directorInput", "writerInput", "castInput", "genreInput"].map((id) => [id, document.getElementById(id).value]));
       }
 
+      function markNewFormManualField(id) {
+        newFormManualFields.add(id);
+        delete newFormAutoValues[id];
+        newFormPendingDetails?.editedFields.add(id);
+      }
+
+      function prepareNewFormSelection(key) {
+        if (!isNewMovieForm() || newFormSelectionKey === key) return;
+        // 前候補の自動入力だけを除き、手動入力や変更済みの値は残す。
+        for (const [id, value] of Object.entries(newFormAutoValues)) {
+          const input = document.getElementById(id);
+          if (newFormManualFields.has(id) || input.value !== value) continue;
+          input.value = "";
+          if (id === "genreInput") { selectedGenres = []; updateGenreButtons(); }
+          if (id === "thumbnailInput") { setPosterPreview(""); document.getElementById("posterPreview").classList.add("hidden"); }
+        }
+        newFormAutoValues = {};
+        newFormFetchedValues = null;
+        newFormSelectionKey = key;
+        syncAllMovieSelects();
+        syncNewMovieFormClearButtons();
+      }
+
+      function isNewFormDetailsPending() {
+        return newFormPendingDetails?.status === "pending"
+          && newFormPendingDetails.version === newFormFetchVersion;
+      }
+
+      function cancelNewFormDetails() {
+        newFormFetchVersion++;
+        const pending = newFormPendingDetails;
+        if (pending) {
+          pending.stop("cancelled");
+          clearTimeout(pending.timeout);
+          newFormPendingDetails = null;
+        }
+        syncNewFormRetry();
+      }
+
       function syncNewFormRetry() {
         const isNew = document.getElementById("formView").dataset.formMode === "new";
         const button = document.getElementById("fetchBtn");
         button.hidden = !isNew || !selectedTmdbResult;
-        button.disabled = !!newFormPendingDetails && newFormPendingDetails.version === newFormFetchVersion;
+        button.disabled = isNewFormDetailsPending();
         button.textContent = button.disabled ? "取得中…" : (isNew ? "再取得" : "ポスター取得");
+        if (isNew) {
+          const disabled = isNewFormDetailsPending() || !!formSaveRequest || newMovieSaveRunning || movieEditSavingIds.size > 0;
+          for (const id of ["saveBtn", "mobileSaveBtn"]) document.getElementById(id).disabled = disabled;
+        }
       }
 
       function retryMovieInfo() {
@@ -7152,29 +7214,57 @@ body:has(#detailView:not(.hidden)) { padding-bottom: 0 !important; }
         const values = captureNewFormMetadata();
         const modified = newFormManualMetadata || Object.entries(values).some(([id, value]) => value && value !== (newFormFetchedValues?.[id] || ""));
         if (modified && !confirm("手動編集した作品情報がTMDbの情報で上書きされる場合があります。再取得しますか？ 手動入力した画像URLは保持されます。")) return;
-        return fetchPoster();
+        return fetchPoster({ replaceManual: true });
       }
 
-      function fetchPoster() {
+      function fetchPoster({ replaceManual = false } = {}) {
         if (!isEntryMovieForm()) return;
         const isNew = isNewMovieForm();
         const selection = selectedTmdbResult;
         if (isNew && !selection) return;
         const key = selection ? `${selection.media_type}:${selection.id}` : `title:${document.getElementById("titleInput").value.trim()}`;
-        if (newFormPendingDetails?.key === key && newFormPendingDetails.version === newFormFetchVersion) return newFormPendingDetails.promise;
-        const version = ++newFormFetchVersion;
+        if (newFormPendingDetails?.key === key && isNewFormDetailsPending()) return newFormPendingDetails.promise;
+        cancelNewFormDetails();
+        prepareNewFormSelection(key);
+        const version = newFormFetchVersion;
         const formRequest = movieEditOpenRequest;
+        const controller = new AbortController();
+        const pending = { key, version, status: "pending", controller,
+          editedFields: new Set(isNew && !replaceManual ? newFormManualFields : []) };
+        const stopped = new Promise((resolve) => {
+          pending.stop = (status) => {
+            if (pending.status !== "pending") return;
+            pending.status = status;
+            resolve({ status });
+            controller.abort();
+          };
+        });
         const values = Object.fromEntries(["synopsisInput", "yearInput", "runtimeInput", "countryInput", "directorInput", "writerInput", "castInput"].map((id) => [id, document.getElementById(id).value]));
         const context = { selection, values, genres: selectedGenres.join(", "), posterRevision: newFormPosterRevision,
-          allowPosterReplacement: !isNew, clearMissingPoster: isNew,
-          isCurrent: () => version === newFormFetchVersion && formRequest === movieEditOpenRequest && isEntryMovieForm() };
-        const promise = retrieveMovieInfo(context);
-        newFormPendingDetails = { key, version, promise };
-        syncNewFormRetry();
-        void promise.finally(() => {
-          if (newFormPendingDetails?.promise === promise) { newFormPendingDetails = null; syncNewFormRetry(); }
+          allowPosterReplacement: !isNew, clearMissingPoster: isNew, signal: controller.signal,
+          editedFields: pending.editedFields,
+          recordAuto: (id) => {
+            if (isNew) { newFormAutoValues[id] = document.getElementById(id).value; newFormManualFields.delete(id); }
+          },
+          isCurrent: () => pending.status === "pending" && newFormPendingDetails === pending
+            && version === newFormFetchVersion && formRequest === movieEditOpenRequest && isEntryMovieForm() };
+        newFormPendingDetails = pending;
+        pending.timeout = setTimeout(() => pending.stop("timeout"), TMDB_DETAILS_TIMEOUT_MS);
+        pending.promise = Promise.race([retrieveMovieInfo(context), stopped]).then((result) => {
+          if (pending.status === "pending") pending.status = result.status;
+          if (pending.status === "timeout" && newFormPendingDetails === pending
+            && version === newFormFetchVersion && isEntryMovieForm()) {
+            const status = document.getElementById("fetchStatus");
+            status.textContent = "作品情報の取得がタイムアウトしました。手動で入力して保存するか、再取得してください。";
+            status.className = "text-sm mt-1.5 text-red-600";
+          }
+          return { status: pending.status };
+        }).finally(() => {
+          clearTimeout(pending.timeout);
+          if (newFormPendingDetails === pending) { newFormPendingDetails = null; syncNewFormRetry(); }
         });
-        return promise;
+        syncNewFormRetry();
+        return pending.promise;
       }
 
       async function retrieveMovieInfo(context = null) {
@@ -7183,7 +7273,7 @@ body:has(#detailView:not(.hidden)) { padding-bottom: 0 !important; }
 
         if (!title) {
           alert("タイトルを入力してください");
-          return;
+          return { status: "failed" };
         }
 
         document.getElementById("titleSuggestions").classList.add("hidden");
@@ -7198,18 +7288,18 @@ body:has(#detailView:not(.hidden)) { padding-bottom: 0 !important; }
             const searchData = await callTmdbFunction({
               action: "search",
               query: title,
-            });
+            }, context?.signal);
             result = (searchData.results || []).find(
               (item) => item.media_type === "movie" || item.media_type === "tv",
             );
           }
 
-          if (context && !context.isCurrent()) return;
+          if (context && !context.isCurrent()) return { status: "cancelled" };
           if (!result) {
             statusEl.textContent =
               "見つかりませんでした。タイトルを変えて試すか、手動で入力してください";
             statusEl.className = "text-sm mt-1.5 text-red-600";
-            return;
+            return { status: "failed" };
           }
 
           const mediaType = result.media_type;
@@ -7217,18 +7307,23 @@ body:has(#detailView:not(.hidden)) { padding-bottom: 0 !important; }
             action: "details",
             mediaType,
             id: result.id,
-          });
+          }, context?.signal);
 
-          if (context && !context.isCurrent()) return;
+          if (context && !context.isCurrent()) return { status: "cancelled" };
           if (context && (!detail || String(detail.id) !== String(result.id))) throw new Error("作品情報が選択作品と一致しません");
           const setValue = (id, value) => {
             const input = document.getElementById(id);
-            if (!context || input.value === context.values[id]) input.value = value;
+            if (!context || (!context.editedFields.has(id) && input.value === context.values[id])) {
+              input.value = value;
+              context?.recordAuto(id);
+            }
           };
-          const maySetPoster = !context || ((context.allowPosterReplacement || !newFormManualPoster) && context.posterRevision === newFormPosterRevision);
+          const maySetPoster = !context || (!context.editedFields.has("thumbnailInput")
+            && (context.allowPosterReplacement || !newFormManualPoster) && context.posterRevision === newFormPosterRevision);
           if (maySetPoster && detail.poster_path) {
             const posterUrl = `https://image.tmdb.org/t/p/w500${detail.poster_path}`;
             document.getElementById("thumbnailInput").value = posterUrl;
+            context?.recordAuto("thumbnailInput");
             setPosterPreview(posterUrl);
             document.getElementById("posterPreview").classList.remove("hidden");
           }
@@ -7250,9 +7345,10 @@ body:has(#detailView:not(.hidden)) { padding-bottom: 0 !important; }
 
           document.getElementById("titleInput").value = titleValue || title;
           setValue("synopsisInput", overview);
-          if (!context || document.getElementById("yearInput").value === context.values.yearInput) {
+          if (!context || (!context.editedFields.has("yearInput") && document.getElementById("yearInput").value === context.values.yearInput)) {
             if (context) document.getElementById("yearInput").value = "";
             populateYearInput(yearValue);
+            context?.recordAuto("yearInput");
           }
           setValue("runtimeInput", runtimeValue);
 
@@ -7260,10 +7356,11 @@ body:has(#detailView:not(.hidden)) { padding-bottom: 0 !important; }
           const genreNames = (detail.genres || [])
             .map((g) => mapTmdbGenre(g.id, g.name, mediaType))
             .filter(Boolean);
-          if (!context || selectedGenres.join(", ") === context.genres) {
+          if (!context || (!context.editedFields.has("genreInput") && selectedGenres.join(", ") === context.genres)) {
             selectedGenres = [...new Set(genreNames)];
             document.getElementById("genreInput").value = selectedGenres.join(", ");
             updateGenreButtons();
+            context?.recordAuto("genreInput");
           }
           if (context) {
             setValue("countryInput", mediaType === "movie" ? (detail.production_countries || []).map((c) => c.name).join(", ") : (detail.origin_country || []).join(", "));
@@ -7330,12 +7427,14 @@ body:has(#detailView:not(.hidden)) { padding-bottom: 0 !important; }
             statusEl.textContent = `取得成功：「${titleValue || title}」`;
             statusEl.className = "text-sm mt-1.5 text-green-600";
           }
+          return { status: "success" };
         } catch (err) {
-          if (context && !context.isCurrent()) return;
+          if (context && !context.isCurrent()) return { status: "cancelled" };
           console.error(err);
           statusEl.textContent =
             "通信エラーが発生しました。時間をおいてもう一度お試しください";
           statusEl.className = "text-sm mt-1.5 text-red-600";
+          return { status: "failed" };
         }
       }
 
@@ -10747,6 +10846,7 @@ body:has(#detailView:not(.hidden)) { padding-bottom: 0 !important; }
       const wasAuthenticated = authenticated;
       const nextUserId = signedIn ? session.user.id : null;
       if (!signedIn || autoRestoreSessionUserId !== nextUserId) {
+        cancelNewFormDetails();
         autoSyncMetadataCheckedUsers.clear();
         autoSyncMetadataSessionVersion += 1;
         supabaseMovieLoadRequest = null;
