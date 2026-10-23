@@ -6634,9 +6634,13 @@ body:has(#detailView:not(.hidden)) { padding-bottom: 0 !important; }
           // 保存済みで表示更新だけ失敗した操作は、再取得を続けられるようにする。
           if (isNewMovie && newMovieSaveOperation?.saved
             && String(movie.id) === newMovieSaveOperation.movie.id) return false;
-          const hasTmdbId = movieData.tmdbId !== undefined && movieData.tmdbId !== "";
+          const hasTmdbId = movieData.tmdbId !== undefined && movieData.tmdbId !== null && movieData.tmdbId !== "";
           const hasExistingTmdbId = movie.tmdbId !== undefined && movie.tmdbId !== null && movie.tmdbId !== "";
-          if (hasTmdbId && hasExistingTmdbId) return String(movie.tmdbId) === String(movieData.tmdbId);
+          const hasMediaTypes = ["movie", "tv"].includes(movie.mediaType) && ["movie", "tv"].includes(movieData.mediaType);
+          // TMDbのIDは作品種別ごとに比較する。不明な旧データは従来のタイトル＋年へ戻す。
+          if (hasTmdbId && hasExistingTmdbId && hasMediaTypes) {
+            return movie.mediaType === movieData.mediaType && String(movie.tmdbId) === String(movieData.tmdbId);
+          }
           return normalizeMovieTitle(movie.title) === normalizeMovieTitle(title)
             && String(movie.year || "").trim() === movieData.year;
         });
