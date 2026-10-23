@@ -1801,22 +1801,155 @@ html:not([data-auth-state="authenticated"]) #formView { display: none !important
 html[data-auth-state="authenticated"] #authView { display: none; }
 html:not([data-auth-state="authenticated"]) body { padding-bottom: 0 !important; }
 #authView [hidden] { display: none !important; }
-#authView { min-height: 100vh; min-height: 100svh; display: flex; align-items: center; justify-content: center; padding: 2rem 1rem; background: var(--paper); }
-#authView .auth-card { width: min(100%, 25rem); background: var(--paper-light); border: 1px solid var(--line); border-radius: .4rem; box-shadow: 0 5px 18px rgba(52,51,47,.10); overflow: hidden; }
-#authView .auth-heading { padding: 1.8rem 1rem; text-align: center; border-bottom: 1px solid var(--line); background: repeating-linear-gradient(90deg, #e8e2d7 0 94.5px, #fbfaf6 94.5px 189px); background-position: calc(50% - 47.25px) 0; }
-#authView h1 { font-family: Georgia, "Times New Roman", serif; font-size: 1.9rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
-#authView .auth-body { padding: 1.5rem; }
-#authView h2 { margin-bottom: 1.25rem; font-size: 1rem; font-weight: 600; }
-#authView label { display: block; margin: 1rem 0 .4rem; font-size: .875rem; }
-#authView input { width: 100%; box-sizing: border-box; border: 1px solid var(--line); border-radius: .4rem; padding: .75rem; background: #fff; color: var(--ink); font-family: inherit; }
-#authView input:focus { outline: 2px solid rgba(123,69,72,.28); outline-offset: 1px; }
-#authView .auth-submit { width: 100%; margin-top: 1.5rem; padding: .8rem 1rem; border: 1px solid #d8cfbd; border-radius: .38rem; outline: 1px solid rgba(216,207,189,.45); outline-offset: -5px; background: #17283a; color: #f5efe3; font-weight: 600; font-family: inherit; cursor: pointer; }
-#authView .auth-switch { display: block; margin: 1.15rem auto 0; padding: .25rem; color: var(--burgundy); font-size: .875rem; text-decoration: underline; text-underline-offset: .2em; cursor: pointer; }
+#authView {
+  --auth-ink: #1c1c1c;
+  --auth-muted: #68665f;
+  --auth-surface: #f3f0e8;
+  --auth-control: #fdfcf8;
+  --auth-lime: #a8ff00;
+  --auth-press-distance: 4px;
+  --auth-rule: 2px solid rgba(28,28,28,.55);
+  --auth-divider-height: 52px;
+  --auth-collage-opacity: .70;
+  --auth-collage-filter: contrast(.83) saturate(.78);
+  box-sizing: border-box;
+  position: relative;
+  isolation: isolate;
+  min-height: 100vh;
+  min-height: 100svh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 24px;
+  background: #f6f5f0;
+  color: var(--auth-ink);
+  font-family: "IBM Plex Sans JP", "Hiragino Sans", "Yu Gothic", "Meiryo", "Noto Sans JP", sans-serif;
+}
+/* 既存のDeep Mistと同じ原寸画像・色補正。フォームにはフィルターを掛けない。 */
+#authView::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: linear-gradient(#e2e5e1, #e2e5e1), url("assets/paper-natural-1920.png");
+  background-size: auto;
+  background-position: center top;
+  background-repeat: repeat;
+  background-blend-mode: color, normal;
+  filter: brightness(.91);
+}
+#authView .auth-stage { display: grid; grid-template-columns: minmax(0, 1fr); place-items: center; width: 100%; }
+#authView .auth-mobile-collage { display: none; }
+#authView .auth-collage-layer { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+/* 透過PNGの左右を画面端に合わせ、中央の透明部分で幅を調整する。新聞の文字を端で切らず、縦横比と原画像を維持する。 */
+#authView .auth-collage { position: absolute; top: 0; z-index: 0; width: auto; max-width: none; height: 100%; object-fit: contain; opacity: var(--auth-collage-opacity); filter: var(--auth-collage-filter); pointer-events: none; user-select: none; }
+/* 画像固有の掠れを残し、外側から中央へインクの濃度だけを落とす。背景やカードには適用しない。 */
+#authView .auth-collage {
+  --auth-collage-fade-direction: to right;
+  --auth-collage-mask: linear-gradient(var(--auth-collage-fade-direction), #000 8%, rgba(0,0,0,.9) 16%, rgba(0,0,0,.5) 25%, transparent 38%);
+  -webkit-mask-image: var(--auth-collage-mask);
+  mask-image: var(--auth-collage-mask);
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+}
+#authView .auth-collage--left { left: 0; clip-path: inset(0 50% 0 0); }
+#authView .auth-collage--right { --auth-collage-fade-direction: to left; right: 0; clip-path: inset(0 0 0 50%); }
+#authView .auth-card { box-sizing: border-box; position: relative; z-index: 1; min-width: 0; width: min(100%, 560px); padding: 32px 44px; background: var(--auth-surface); border: 1px solid var(--auth-ink); border-radius: 4px; box-shadow: 3px 3px 0 var(--auth-ink), 0 24px 50px rgba(0,0,0,.19), 0 10px 20px rgba(0,0,0,.10); }
+#authView .auth-heading { display: flex; align-items: last baseline; gap: 20px; padding-bottom: 20px; margin-bottom: 24px; border-bottom: var(--auth-rule); }
+#authView h1 { flex: 0 0 auto; margin: 0; font: 700 63px/1.05 "Oswald", "Arial Narrow", sans-serif; letter-spacing: -.02em; white-space: nowrap; -webkit-text-stroke: .8px var(--auth-ink); }
+#authView .auth-logo-period { color: var(--auth-lime); -webkit-text-stroke: 0; }
+#authView .auth-editorial { position: relative; margin: 0; padding-left: 20px; color: var(--auth-muted); font: 500 12px/1.2 "Oswald", "Arial Narrow", sans-serif; letter-spacing: .06em; white-space: nowrap; }
+#authView .auth-editorial::before { content: ""; position: absolute; left: 0; bottom: 0; width: 1px; height: var(--auth-divider-height); background: rgba(28,28,28,.3); }
+#authView h2 { margin: 0 0 24px; font: 700 32px/1.2 "Oswald", "IBM Plex Sans JP", sans-serif; letter-spacing: .02em; }
+#authView .auth-field + .auth-field { margin-top: 18px; }
+#authView label { display: block; margin: 0 0 8px; font-size: 14px; font-weight: 500; line-height: 1.5; }
+#authView .auth-label-english { font: 500 16px/1.5 "Oswald", "IBM Plex Sans JP", sans-serif; letter-spacing: .06em; }
+#authView input { --auth-input-shadow: 2px 2px 0 var(--auth-ink); display: block; width: 100%; height: 52px; box-sizing: border-box; border: 1px solid var(--auth-ink); border-radius: 4px; padding: 12px 16px 12px 43px; background: var(--auth-control); box-shadow: var(--auth-input-shadow); color: var(--auth-ink); font-family: inherit; line-height: 1.5; }
+#authView input::placeholder { color: #777168; opacity: 1; }
+#authView input:focus { outline: none; }
+/* 検索欄と同じ34pxの三角形。1pxの枠の内側から上・左に4px空ける。 */
+#authView .auth-input-wrap { position: relative; }
+#authView .auth-input-wrap::after { content: ""; position: absolute; top: 5px; left: 5px; width: 34px; height: 34px; background: var(--auth-lime); clip-path: polygon(0 0, 100% 0, 0 100%); opacity: 0; z-index: 1; pointer-events: none; }
+#authView .auth-input-wrap:has(> input:focus)::after { opacity: 1; }
+/* キーボード利用時にも低コントラストのライムだけに依存せず、外枠を増やさない。 */
+#authView input:focus-visible { --auth-input-shadow: inset 0 -2px 0 var(--auth-ink), 2px 2px 0 var(--auth-ink); }
+/* 自動入力は無効にせず、ブラウザの背景色だけを内側のアイボリーで覆う。 */
+#authView input:is(:-webkit-autofill, :autofill) { background-color: var(--auth-control); -webkit-text-fill-color: var(--auth-ink); caret-color: var(--auth-ink); box-shadow: var(--auth-input-shadow), inset 0 0 0 1000px var(--auth-control); }
+#authView .auth-password-wrap input { padding-right: 52px; }
+#authView .auth-password-toggle { position: absolute; top: 4px; right: 4px; display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 2px; background: transparent; color: var(--auth-ink); cursor: pointer; }
+#authView .auth-password-toggle svg { display: block; width: 20px; height: 20px; }
+#authView .auth-password-toggle .auth-eye-hidden,
+#authView .auth-password-toggle[aria-pressed="true"] .auth-eye-visible { display: none; }
+#authView .auth-password-toggle[aria-pressed="true"] .auth-eye-hidden { display: block; }
+#authView .auth-submit { display: block; position: relative; width: 56%; min-height: 52px; margin: 24px auto 0; padding: 10px 40px; border: 1px solid var(--auth-ink); border-radius: 4px; background: var(--auth-lime); box-shadow: 4px 4px 0 var(--auth-ink); color: var(--auth-ink); font: 700 20px/1.5 "Oswald", "IBM Plex Sans JP", sans-serif; letter-spacing: .04em; white-space: nowrap; cursor: pointer; }
+/* textContentを更新する既存認証処理から独立した、装飾用の矢印。 */
+#authView .auth-submit::after { content: ""; position: absolute; top: 50%; right: 18px; width: 20px; height: 20px; transform: translateY(-50%); pointer-events: none; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231c1c1c' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12h14m-6-6 6 6-6 6'/%3E%3C/svg%3E") center / contain no-repeat; }
+#authView .auth-submit.movie-press { --movie-press-distance: var(--auth-press-distance); --movie-press-hover-distance: 0px; --movie-press-rest-shadow: 4px 4px 0 var(--auth-ink); --movie-press-hover-shadow: var(--movie-press-rest-shadow); --movie-press-down-shadow: none; }
+#authView .auth-switch { display: block; min-height: 44px; margin: 16px auto 0; padding: 8px 4px; background: transparent; color: var(--auth-muted); font: inherit; font-size: 14px; text-decoration: underline; text-underline-offset: 4px; cursor: pointer; }
+#authView button:focus-visible { outline: 2px solid var(--auth-ink); outline-offset: 4px; }
 #authView button:disabled { opacity: .6; cursor: wait; }
-#authMessage { margin-top: 1rem; color: var(--burgundy); font-size: .875rem; line-height: 1.7; white-space: pre-line; }
-#authMessage[data-kind="success"] { color: #59624f; }
-#authLoading { color: var(--muted); font-size: .875rem; }
+#authView .auth-submit:disabled { padding-inline: 12px; }
+#authView .auth-submit:disabled::after { opacity: 0; }
+#authMessage { margin: 20px 0 0; padding-top: 16px; border-top: var(--auth-rule); color: #7b4548; font-size: 14px; line-height: 1.7; white-space: pre-line; overflow-wrap: anywhere; }
+#authMessage[data-kind="success"] { color: var(--auth-muted); }
+#authLoading { margin: 0; color: var(--auth-muted); font-size: 14px; line-height: 1.7; }
 #authLogoutMessage { color: var(--burgundy); }
+/* 縦長・狭い・低い画面では、装飾をフォームに近づけず操作を優先する。 */
+@media (max-width: 1279px), (max-height: 699px), (max-aspect-ratio: 4/3) { #authView .auth-collage { display: none; } }
+@media (min-width: 768px) and (max-height: 759px) { #authView { padding-block: 24px; } }
+@media (max-width: 767px) {
+  #authView { --auth-divider-height: 40px; padding: 0 16px; }
+  /* 28pxの最小余白とカードの中央配置を保ち、残りの上下余白だけを装飾に使う。 */
+  #authView .auth-stage { min-height: 100svh; grid-template-rows: minmax(28px, 1fr) auto minmax(28px, 1fr); }
+  #authView .auth-card { grid-row: 2; padding: 28px 24px; }
+  #authView .auth-mobile-collage { display: block; position: relative; align-self: stretch; width: calc(100% + 32px); min-height: 0; overflow: hidden; z-index: 0; pointer-events: none; }
+  #authView .auth-mobile-collage::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    width: 100%;
+    height: clamp(0px, calc(100% - var(--auth-mobile-card-clearance)), 180px);
+    background: url("assets/login-newspaper-mobile-frame.png") center var(--auth-mobile-frame-edge) / 100% auto no-repeat;
+    opacity: var(--auth-collage-opacity);
+    filter: var(--auth-collage-filter);
+    /* 輪郭はPNGのアルファを使う。枠の高さに連動するフェードで途中を消さない。 */
+    -webkit-mask-image: none;
+    mask-image: none;
+    pointer-events: none;
+  }
+  /* 941×1672pxのPNGの上側輪郭（約384px）を、短い表示枠でも内側から切らない。 */
+  /* 離隔を少し縮めて内側へ寄せる。余白不足時は従来の離隔まで戻して操作領域を守る。 */
+  #authView .auth-mobile-collage--top { grid-row: 1; --auth-mobile-card-clearance: clamp(20px, calc(72px - 100%), 36px); --auth-mobile-frame-edge: min(calc(0% - 20vw), calc(100% + 136.8vw - 2px)); }
+  #authView .auth-mobile-collage--top::before { top: 0; }
+  #authView .auth-mobile-collage--bottom {
+    grid-row: 3;
+    --auth-mobile-card-clearance: clamp(24px, calc(88px - 100%), 44px);
+    /* 下側の輪郭（約1190px）も、枠の上端から切らない範囲で従来位置を使う。 */
+    --auth-mobile-frame-edge: max(calc(100% + 24vw), calc(0% - 126.4vw + 2px));
+  }
+  #authView .auth-mobile-collage--bottom::before { bottom: 0; }
+  #authView .auth-heading { gap: 10px; padding-bottom: 20px; margin-bottom: 24px; }
+  #authView h1 { font-size: 40px; }
+  #authView .auth-editorial { padding-left: 10px; font-size: 11px; letter-spacing: .04em; }
+  #authView h2 { font-size: 30px; }
+  #authView .auth-submit { width: 76%; min-width: 180px; }
+}
+@media (max-width: 374px) {
+  #authView { --auth-divider-height: 36px; }
+  #authView .auth-heading { gap: 8px; }
+  #authView h1 { font-size: clamp(32px, calc(20vw - 32px), 38px); }
+  #authView .auth-editorial { padding-left: 8px; font-size: 10px; }
+}
+@media (max-width: 359px) { #authView .auth-card { padding-inline: 20px; } }
+@media (prefers-reduced-motion: reduce) { #authView { --auth-press-distance: 0px; } }
+@media (forced-colors: active) {
+  #authView button:focus-visible { outline-color: Highlight; }
+  #authView input:focus-visible { outline: 2px solid Highlight; outline-offset: -3px; }
+  #authView input:is(:-webkit-autofill, :autofill) { -webkit-text-fill-color: CanvasText; caret-color: CanvasText; }
+}
 </style>
 <style>
 /* UI/UX第1段階：トップのブランド・統計・操作欄だけを分離する。 */
@@ -3791,26 +3924,55 @@ body:has(#detailView:not(.hidden)) { padding-bottom: 0 !important; }
   <body class="min-h-screen pb-24">
     <!-- ========== 認証画面 ========== -->
     <section id="authView" aria-label="Movie Log ログイン画面">
+      <div class="auth-stage">
+      <div class="auth-mobile-collage auth-mobile-collage--top" aria-hidden="true"></div>
+      <div class="auth-collage-layer" aria-hidden="true">
+        <img class="auth-collage auth-collage--left" src="assets/ヴィンテージ映画新聞コラージュ枠.png" width="1672" height="941" alt="" draggable="false" />
+        <img class="auth-collage auth-collage--right" src="assets/ヴィンテージ映画新聞コラージュ枠.png" width="1672" height="941" alt="" draggable="false" />
+      </div>
       <div class="auth-card">
-        <header class="auth-heading"><h1>Movie Log</h1></header>
+        <header class="auth-heading">
+          <h1>MOVIE LOG<span class="auth-logo-period">.</span></h1>
+          <p class="auth-editorial" aria-hidden="true"><span>A BETTER PLACE</span><br><span>FOR MOVIE LOVERS.</span></p>
+        </header>
         <div class="auth-body">
           <p id="authLoading" role="status">ログイン状態を確認しています…</p>
           <form id="authForm" hidden novalidate>
-            <h2 id="authTitle">ログイン</h2>
-            <label for="authEmail">メールアドレス</label>
-            <input id="authEmail" type="email" autocomplete="email" required />
-            <label for="authPassword">パスワード</label>
-            <input id="authPassword" type="password" autocomplete="current-password" required />
-            <div id="authConfirmField" hidden>
-              <label for="authPasswordConfirm">パスワード確認</label>
-              <input id="authPasswordConfirm" type="password" autocomplete="new-password" />
+            <h2 id="authTitle">LOGIN</h2>
+            <div class="auth-field">
+              <label for="authEmail" class="auth-label-english">EMAIL</label>
+              <div class="auth-input-wrap">
+                <input id="authEmail" type="email" autocomplete="email" placeholder="example@domain.com" required />
+              </div>
             </div>
-            <button id="authSubmitBtn" type="submit" class="auth-submit">ログイン</button>
+            <div class="auth-field">
+              <label for="authPassword" class="auth-label-english">PASSWORD</label>
+              <div class="auth-input-wrap auth-password-wrap">
+                <input id="authPassword" type="password" autocomplete="current-password" required />
+                <button type="button" class="auth-password-toggle" aria-controls="authPassword" aria-label="パスワードを表示" aria-pressed="false">
+                  <svg class="auth-eye-visible" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>
+                  <svg class="auth-eye-hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 3 18 18M10.6 10.6a2 2 0 0 0 2.8 2.8M9.9 5.2A12 12 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.1 4M6.2 6.2A18 18 0 0 0 2 12s3.5 7 10 7a12 12 0 0 0 5.8-1.6"/></svg>
+                </button>
+              </div>
+            </div>
+            <div id="authConfirmField" class="auth-field" hidden>
+              <label for="authPasswordConfirm" class="auth-label-english">CONFIRM PASSWORD</label>
+              <div class="auth-input-wrap auth-password-wrap">
+                <input id="authPasswordConfirm" type="password" autocomplete="new-password" />
+                <button type="button" class="auth-password-toggle" aria-controls="authPasswordConfirm" aria-label="パスワード確認を表示" aria-pressed="false">
+                  <svg class="auth-eye-visible" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>
+                  <svg class="auth-eye-hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 3 18 18M10.6 10.6a2 2 0 0 0 2.8 2.8M9.9 5.2A12 12 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.1 4M6.2 6.2A18 18 0 0 0 2 12s3.5 7 10 7a12 12 0 0 0 5.8-1.6"/></svg>
+                </button>
+              </div>
+            </div>
+            <button id="authSubmitBtn" type="submit" class="auth-submit">LOGIN</button>
             <button id="authSwitchBtn" type="button" class="auth-switch">新規登録はこちら</button>
           </form>
           <p id="authMessage" role="status" aria-live="polite" hidden></p>
           <button id="authRetryBtn" type="button" class="auth-switch" hidden>再読み込みして試す</button>
         </div>
+      </div>
+      <div class="auth-mobile-collage auth-mobile-collage--bottom" aria-hidden="true"></div>
       </div>
     </section>
     <!-- ========== 一覧画面 ========== -->
@@ -5447,6 +5609,26 @@ body:has(#detailView:not(.hidden)) { padding-bottom: 0 !important; }
         }, true);
       }
 
+      // 認証の送信・状態管理とは分離し、入力内容の見え方だけを切り替える。
+      function setupAuthPasswordVisibility() {
+        const toggles = [...document.querySelectorAll('#authView .auth-password-toggle')];
+        const setVisible = (button, visible) => {
+          const input = document.getElementById(button.getAttribute('aria-controls'));
+          input.type = visible ? 'text' : 'password';
+          button.setAttribute('aria-pressed', String(visible));
+          const label = input.id === 'authPasswordConfirm' ? 'パスワード確認' : 'パスワード';
+          button.setAttribute('aria-label', `${label}を${visible ? '隠す' : '表示'}`);
+        };
+        const reset = () => toggles.forEach((button) => setVisible(button, false));
+        toggles.forEach((button) => {
+          button.addEventListener('click', () => setVisible(button, button.getAttribute('aria-pressed') !== 'true'));
+        });
+        document.getElementById('authSwitchBtn').addEventListener('click', reset);
+        const observer = new MutationObserver(reset);
+        observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-auth-state'] });
+        observer.observe(document.getElementById('authConfirmField'), { attributes: true, attributeFilter: ['hidden'] });
+      }
+
       function init() {
         const sortSelect = document.getElementById("sortSelect");
         const savedSort = localStorage.getItem("movieLog_sort");
@@ -5461,6 +5643,7 @@ body:has(#detailView:not(.hidden)) { padding-bottom: 0 !important; }
         setupMovieSelects();
         setupNewMovieFormUI();
         setupInteractionFeedback();
+        setupAuthPasswordVisibility();
         syncAllMovieSelects();
         renderList();
       }
@@ -10520,14 +10703,14 @@ body:has(#detailView:not(.hidden)) { padding-bottom: 0 !important; }
 
     function setMode(signup) {
       signupMode = signup;
-      document.getElementById("authTitle").textContent = signup ? "新規アカウント作成" : "ログイン";
+      document.getElementById("authTitle").textContent = signup ? "CREATE ACCOUNT" : "LOGIN";
       document.getElementById("authConfirmField").hidden = !signup;
       confirmPassword.required = signup;
       password.autocomplete = signup ? "new-password" : "current-password";
       password.minLength = signup ? 6 : 1;
       password.value = "";
       confirmPassword.value = "";
-      submit.textContent = signup ? "アカウントを作成" : "ログイン";
+      submit.textContent = signup ? "SIGN UP" : "LOGIN";
       switchButton.textContent = signup ? "ログインへ戻る" : "新規登録はこちら";
       showMessage();
     }
@@ -10535,7 +10718,7 @@ body:has(#detailView:not(.hidden)) { padding-bottom: 0 !important; }
     function setBusy(value) {
       busy = value;
       form.querySelectorAll("input, button").forEach((element) => { element.disabled = value; });
-      submit.textContent = value ? "処理中…" : signupMode ? "アカウントを作成" : "ログイン";
+      submit.textContent = value ? "PROCESSING..." : signupMode ? "SIGN UP" : "LOGIN";
     }
 
     function applySession(session) {
