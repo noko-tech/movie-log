@@ -6975,13 +6975,15 @@ body:has(#detailView:not(.hidden)) { padding-bottom: 0 !important; }
             || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}([.]\d{1,6})?(Z|[+-]\d{2}:\d{2})$/.test(source.createdAt)
             || !Number.isFinite(Date.parse(source.createdAt))) fail("登録日時");
           if (typeof source.favorite !== "boolean") fail("お気に入り");
-          if (typeof source.status !== "string" || !source.status.trim()) fail("視聴状況");
+          if (!["watched", "watching", "unwatched"].includes(source.status)) fail("視聴状況");
           // 権限・UUID等の追加プロパティは引き継がず、映画項目だけをコピーする。
           const movie = { id, title: source.title, createdAt: source.createdAt, favorite: source.favorite, status: source.status };
           for (const field of ["mediaType", "thumbnail", "synopsis", "genre", "country", "director", "writer", "cast", "watchDate", "comment", "seriesName"]) {
             if (source[field] != null && typeof source[field] !== "string") fail(field);
             movie[field] = source[field] ?? "";
           }
+          // 種別未設定の旧バックアップは維持し、未知の種別を補完しない。
+          if (!["", "movie", "tv"].includes(movie.mediaType)) fail("作品種別");
           for (const field of ["rating", "year", "runtime", "tmdbId", "seriesOrder"]) {
             const value = source[field];
             if (value == null || (typeof value === "string" && !value.trim())) {
@@ -6994,6 +6996,7 @@ body:has(#detailView:not(.hidden)) { padding-bottom: 0 !important; }
             const min = field === "rating" ? 0 : field === "tmdbId" ? Number.MIN_SAFE_INTEGER : -32768;
             const max = field === "rating" ? 5 : field === "tmdbId" ? Number.MAX_SAFE_INTEGER : 32767;
             if (!Number.isSafeInteger(number) || number < min || number > max) fail(field);
+            if (field === "runtime" && number < 0) fail("上映時間");
             // 文字列はそのままSQL検証へ渡し、丸めによる不正値の補完をしない。
             movie[field] = typeof value === "string" ? value.trim() : value;
           }
