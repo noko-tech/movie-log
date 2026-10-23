@@ -3323,6 +3323,8 @@ html:not([data-auth-state="authenticated"]) #listView #emptyState { display: non
 #formView[data-form-mode] :is(.movie-select-option, .title-suggestion):focus-visible { outline: 1px solid var(--top-ui-ink); outline-offset: -2px; }
 #formView[data-form-mode] #fetchStatus { color: #59615d; }
 #formView[data-form-mode] #fetchStatus.text-red-600 { color: #943d38; }
+#formView[data-form-mode] .title-search-message { margin: 0; color: #59615d; overflow-wrap: anywhere; }
+#formView[data-form-mode] .title-search-message[data-error="true"] { color: #943d38; }
 @media (hover: hover) and (pointer: fine) {
   #formView[data-form-mode] :is(#formBackBtn, #saveBtn, #fetchBtn, #mobileSaveBtn, #favoriteInputBtn, .genre-btn, .movie-select-button) {
     transition: transform 120ms ease, box-shadow 120ms ease !important;
@@ -4657,6 +4659,8 @@ body:has(#detailView:not(.hidden)) { padding-bottom: 0 !important; }
       let selectedTmdbResult = null;
       let currentTmdbId = null;
       let titleSearchRequestId = 0;
+      let titleSearchRequest = null;
+      const TMDB_SEARCH_TIMEOUT_MS = 30000;
       let newFormFetchVersion = 0;
       let newFormPendingDetails = null;
       const TMDB_DETAILS_TIMEOUT_MS = 30000;
@@ -5817,30 +5821,25 @@ body:has(#detailView:not(.hidden)) { padding-bottom: 0 !important; }
         const titleInput = document.getElementById("titleInput");
         const titleSuggestions = document.getElementById("titleSuggestions");
         titleInput.addEventListener("input", () => {
+          cancelTitleSearch();
           if (isEntryMovieForm()) {
             cancelNewFormDetails();
-            titleSearchRequestId++;
             if (isNewMovieForm()) window.currentMediaType = null;
             document.getElementById("fetchStatus").classList.add("hidden");
           }
           selectedTmdbResult = null;
           syncNewFormRetry();
           currentTmdbId = editingId ? (movies.find((m) => m.id === editingId)?.tmdbId ?? null) : null;
-          clearTimeout(titleSearchTimer);
           const query = titleInput.value.trim();
-          if (query.length < 2) {
-            titleSuggestions.classList.add("hidden");
-            titleSuggestions.innerHTML = "";
-            return;
-          }
+          if (query.length < 2) return;
           titleSearchTimer = setTimeout(() => searchTitleSuggestions(query), 400);
         });
         titleInput.addEventListener("keydown", (e) => {
-          if (e.key === "Escape") titleSuggestions.classList.add("hidden");
+          if (e.key === "Escape") cancelTitleSearch();
         });
         document.addEventListener("click", (e) => {
           if (!titleInput.contains(e.target) && !titleSuggestions.contains(e.target)) {
-            titleSuggestions.classList.add("hidden");
+            cancelTitleSearch();
           }
         });
 
@@ -6006,7 +6005,7 @@ body:has(#detailView:not(.hidden)) { padding-bottom: 0 !important; }
 
       // ===================== ビュー切り替え =====================
       function showView(view) {
-        if (view !== "form") cancelNewFormDetails();
+        if (view !== "form") { cancelTitleSearch(); cancelNewFormDetails(); }
         document.getElementById("listView").classList.add("hidden");
         document.getElementById("detailView").classList.add("hidden");
         document.getElementById("formView").classList.add("hidden");
@@ -6326,6 +6325,7 @@ body:has(#detailView:not(.hidden)) { padding-bottom: 0 !important; }
       async function openForm(id = null) {
         if (formSaveRequest || movieEditSavingIds.size) return;
         const requestId = ++movieEditOpenRequest;
+        cancelTitleSearch();
         let editSession = null;
         if (id) {
           const sourceView = ["listView", "detailView", "formView"].find((view) => !document.getElementById(view).classList.contains("hidden"));
@@ -6342,7 +6342,6 @@ body:has(#detailView:not(.hidden)) { padding-bottom: 0 !important; }
         movieEditSession = editSession;
         clearFormSaveFeedback();
         cancelNewFormDetails();
-        titleSearchRequestId++;
         newFormAutoValues = {};
         newFormSelectionKey = null;
         newFormManualFields.clear();
@@ -7059,43 +7058,120 @@ body:has(#detailView:not(.hidden)) { padding-bottom: 0 !important; }
       }
 
       // ===================== ポスター自動取得（TMDb） =====================
-      async function callTmdbFunction(payload, signal) {
-        const response = await fetch(TMDB_FUNCTION_URL, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(payload),
-          signal,
-        });
+      function tmdbRequestError(kind, httpStatus) {
+        return Object.assign(new Error("TMDb request failed"), { tmdbFailure: kind, httpStatus });
+      }
 
-        const data = await response.json();
-        if (!response.ok) {
-          throw new Error(data?.error || `TMDb取得エラー (${response.status})`);
+      async function callTmdbFunction(payload, signal) {
+        let response;
+        try {
+          response = await fetch(TMDB_FUNCTION_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+            signal,
+          });
+        } catch (error) {
+          if (error?.name === "AbortError") throw error;
+          throw tmdbRequestError("network-error");
         }
+        let data;
+        try { data = await response.json(); }
+        catch (error) {
+          if (!response.ok) throw tmdbRequestError("http-error", response.status);
+          if (error?.name === "AbortError") throw error;
+          throw tmdbRequestError("response-error");
+        }
+        if (!response.ok) throw tmdbRequestError("http-error", response.status);
         return data;
       }
 
-      async function searchTitleSuggestions(query) {
+      function cancelTitleSearch() {
+        titleSearchRequestId++;
+        clearTimeout(titleSearchTimer);
+        titleSearchTimer = null;
+        if (titleSearchRequest) {
+          titleSearchRequest.stop("cancelled");
+          clearTimeout(titleSearchRequest.timeout);
+          titleSearchRequest = null;
+        }
         const box = document.getElementById("titleSuggestions");
-        const requestId = ++titleSearchRequestId;
+        box.replaceChildren();
+        box.classList.add("hidden");
+        box.setAttribute("aria-busy", "false");
+        delete box.dataset.searchState;
+      }
+
+      function showTitleSearchMessage(state) {
+        const message = document.createElement("p");
+        message.className = "title-search-message px-3 py-2 text-sm";
+        message.dataset.error = String(state !== "empty");
+        message.setAttribute("role", "status");
+        message.setAttribute("aria-live", "polite");
+        message.textContent = state === "empty" ? "該当する作品が見つかりませんでした。"
+          : state === "timeout" ? "検索に時間がかかっています。もう一度お試しください。"
+          : "作品を検索できませんでした。通信状況を確認して、もう一度お試しください。";
+        const box = document.getElementById("titleSuggestions");
+        box.replaceChildren(message);
+        box.dataset.searchState = state;
+        box.classList.remove("hidden");
+      }
+
+      async function searchTitleSuggestions(query) {
+        query = String(query || "").trim();
+        if (!isEntryMovieForm() || query.length < 2 || document.getElementById("titleInput").value.trim() !== query) return { status: "cancelled" };
+        cancelTitleSearch();
+        const box = document.getElementById("titleSuggestions");
+        const requestId = titleSearchRequestId;
+        const formRequest = movieEditOpenRequest;
+        const controller = new AbortController();
+        const request = { status: "loading" };
+        const stopped = new Promise((resolve) => {
+          request.stop = (status) => {
+            if (request.status !== "loading") return;
+            request.status = status;
+            resolve({ status });
+            controller.abort();
+          };
+        });
+        const context = { isCurrent: () => requestId === titleSearchRequestId && formRequest === movieEditOpenRequest
+          && isEntryMovieForm() && document.getElementById("titleInput").value.trim() === query };
+        titleSearchRequest = request;
+        request.timeout = setTimeout(() => request.stop("timeout"), TMDB_SEARCH_TIMEOUT_MS);
+        box.setAttribute("aria-busy", "true");
+        box.dataset.searchState = "loading";
         try {
-          const searchData = await callTmdbFunction({ action: "search", query });
-          if (requestId !== titleSearchRequestId || document.getElementById("titleInput").value.trim() !== query) return;
-          const results = (Array.isArray(searchData?.results) ? searchData.results : [])
+          // 中断に応じない通信やJSON本文の保留でも、期限後に検索を終了できるようにする。
+          const outcome = await Promise.race([
+            callTmdbFunction({ action: "search", query }, controller.signal).then((data) => ({ status: "success", data })),
+            stopped,
+          ]);
+          if (!context.isCurrent()) return { status: "cancelled" };
+          if (outcome.status === "timeout") { showTitleSearchMessage("timeout"); return { status: "timeout" }; }
+          if (outcome.status === "cancelled") return { status: "cancelled" };
+          const searchData = outcome.data;
+          if (searchData?.error || searchData?.success === false) throw tmdbRequestError("edge-error");
+          if (!searchData || typeof searchData !== "object" || Array.isArray(searchData) || !Array.isArray(searchData.results)) throw tmdbRequestError("response-error");
+          const results = searchData.results
             .filter((item) => item && (item.media_type === "movie" || item.media_type === "tv"))
             .slice(0, 8);
-          renderTitleSuggestions(results);
+          request.status = results.length ? "success" : "empty";
+          if (results.length) renderTitleSuggestions(results, context);
+          else showTitleSearchMessage("empty");
+          return { status: request.status };
         } catch (err) {
-          console.error(err);
-          if (requestId === titleSearchRequestId) {
-            box.innerHTML = "";
-            box.classList.add("hidden");
-          }
+          if (!context.isCurrent()) return { status: "cancelled" };
+          request.status = ["network-error", "http-error", "edge-error", "response-error"].includes(err?.tmdbFailure) ? err.tmdbFailure : "response-error";
+          showTitleSearchMessage(request.status);
+          return { status: request.status };
+        } finally {
+          clearTimeout(request.timeout);
+          if (titleSearchRequest === request) titleSearchRequest = null;
+          if (context.isCurrent()) box.setAttribute("aria-busy", "false");
         }
       }
 
-      function renderTitleSuggestions(results) {
+      function renderTitleSuggestions(results, searchContext = null) {
         const box = document.getElementById("titleSuggestions");
         box.replaceChildren();
         if (!results.length) {
@@ -7135,12 +7211,12 @@ body:has(#detailView:not(.hidden)) { padding-bottom: 0 !important; }
           text.append(titleText, yearText);
           button.append(poster, text);
           button.addEventListener("click", () => {
+            if (searchContext && !searchContext.isCurrent()) return;
+            cancelTitleSearch();
             selectedTmdbResult = item;
             document.getElementById("titleInput").value = title || "";
             box.classList.add("hidden");
             if (isNewMovieForm()) {
-              clearTimeout(titleSearchTimer);
-              titleSearchRequestId++;
               currentTmdbId = item.id;
               window.currentMediaType = item.media_type;
               syncNewMovieFormClearButtons();
@@ -7149,6 +7225,7 @@ body:has(#detailView:not(.hidden)) { padding-bottom: 0 !important; }
           });
           box.appendChild(button);
         });
+        box.dataset.searchState = "success";
         box.classList.remove("hidden");
       }
 
