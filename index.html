@@ -7059,8 +7059,8 @@ body:has(#detailView:not(.hidden)) { padding-bottom: 0 !important; }
         try {
           const searchData = await callTmdbFunction({ action: "search", query });
           if (requestId !== titleSearchRequestId || document.getElementById("titleInput").value.trim() !== query) return;
-          const results = (searchData.results || [])
-            .filter((item) => item.media_type === "movie" || item.media_type === "tv")
+          const results = (Array.isArray(searchData?.results) ? searchData.results : [])
+            .filter((item) => item && (item.media_type === "movie" || item.media_type === "tv"))
             .slice(0, 8);
           renderTitleSuggestions(results);
         } catch (err) {
@@ -7074,22 +7074,43 @@ body:has(#detailView:not(.hidden)) { padding-bottom: 0 !important; }
 
       function renderTitleSuggestions(results) {
         const box = document.getElementById("titleSuggestions");
-        box.innerHTML = "";
+        box.replaceChildren();
         if (!results.length) {
           box.classList.add("hidden");
           return;
         }
         results.forEach((item) => {
-          const title = item.media_type === "tv" ? item.name : item.title;
-          const date = item.media_type === "tv" ? item.first_air_date : item.release_date;
-          const year = (date || "").slice(0, 4);
+          const titleValue = item.media_type === "tv" ? item.name : item.title;
+          const dateValue = item.media_type === "tv" ? item.first_air_date : item.release_date;
+          const title = typeof titleValue === "string" ? titleValue : "";
+          const year = typeof dateValue === "string" ? dateValue.slice(0, 4) : "";
           const button = document.createElement("button");
           button.type = "button";
           button.className = "title-suggestion w-full flex items-center gap-3 px-3 py-2 text-left border-b border-stone-200 last:border-b-0";
-          const poster = item.poster_path
-            ? `<img src="https://image.tmdb.org/t/p/w92${item.poster_path}" alt="" class="w-10 h-14 object-cover shrink-0 bg-stone-200" onerror="usePosterFallback(this)">`
-            : `<div class="w-10 h-14 shrink-0 bg-stone-200 flex items-center justify-center text-[10px] text-stone-500">NO IMAGE</div>`;
-          button.innerHTML = `${poster}<span class="min-w-0"><span class="block text-sm text-slate-800 truncate">${escapeHtml(title || "タイトル不明")}</span><span class="block text-xs text-slate-500 mt-0.5">${year ? escapeHtml(year) + "年" : "公開年不明"}</span></span>`;
+          // 外部データをHTMLとして解釈させず、画像はTMDbの単一ファイル名だけを許可する。
+          const posterPath = typeof item.poster_path === "string"
+            && /^\/[A-Za-z0-9_-]+\.(?:jpg|jpeg|png|webp)$/i.test(item.poster_path)
+            ? item.poster_path : "";
+          const poster = document.createElement(posterPath ? "img" : "div");
+          if (posterPath) {
+            poster.alt = "";
+            poster.className = "w-10 h-14 object-cover shrink-0 bg-stone-200";
+            poster.addEventListener("error", () => usePosterFallback(poster), { once: true });
+            poster.src = `https://image.tmdb.org/t/p/w92${posterPath}`;
+          } else {
+            poster.className = "w-10 h-14 shrink-0 bg-stone-200 flex items-center justify-center text-[10px] text-stone-500";
+            poster.textContent = "NO IMAGE";
+          }
+          const text = document.createElement("span");
+          text.className = "min-w-0";
+          const titleText = document.createElement("span");
+          titleText.className = "block text-sm text-slate-800 truncate";
+          titleText.textContent = title || "タイトル不明";
+          const yearText = document.createElement("span");
+          yearText.className = "block text-xs text-slate-500 mt-0.5";
+          yearText.textContent = year ? year + "年" : "公開年不明";
+          text.append(titleText, yearText);
+          button.append(poster, text);
           button.addEventListener("click", () => {
             selectedTmdbResult = item;
             document.getElementById("titleInput").value = title || "";
