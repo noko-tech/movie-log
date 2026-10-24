@@ -7066,6 +7066,16 @@ body:has(#detailView:not(.hidden)) { padding-bottom: 0 !important; }
         return Object.assign(new Error("TMDb request failed"), { tmdbFailure: kind, httpStatus });
       }
 
+      function tmdbRateLimitMessage(error) {
+        const seconds = error?.retryAfterSeconds;
+        const wait = Number.isSafeInteger(seconds) && seconds > 0 && seconds <= 86400
+          ? `あと${seconds}秒ほど待って、もう一度お試しください。` : "しばらく待って、もう一度お試しください。";
+        if (error?.tmdbFailure === "rate-limit") return `検索の利用上限に達しました。${wait}`;
+        if (error?.tmdbFailure === "tmdb-rate-limit") return `TMDbへのアクセスが集中しています。${wait}`;
+        if (error?.tmdbFailure === "service-unavailable") return "作品情報を一時的に取得できません。時間をおいて、もう一度お試しください。";
+        return null;
+      }
+
       async function callTmdbFunction(payload, signal) {
         if (!authenticatedTmdbRequest) throw tmdbRequestError("auth-error", 401);
         return authenticatedTmdbRequest(payload, signal);
@@ -7087,16 +7097,16 @@ body:has(#detailView:not(.hidden)) { padding-bottom: 0 !important; }
         delete box.dataset.searchState;
       }
 
-      function showTitleSearchMessage(state) {
+      function showTitleSearchMessage(state, error = null) {
         const message = document.createElement("p");
         message.className = "title-search-message px-3 py-2 text-sm";
         message.dataset.error = String(state !== "empty");
         message.setAttribute("role", "status");
         message.setAttribute("aria-live", "polite");
-        message.textContent = state === "empty" ? "該当する作品が見つかりませんでした。"
+        message.textContent = tmdbRateLimitMessage({ tmdbFailure: state, retryAfterSeconds: error?.retryAfterSeconds }) || (state === "empty" ? "該当する作品が見つかりませんでした。"
           : state === "timeout" ? "検索に時間がかかっています。もう一度お試しください。"
           : state === "auth-error" ? "ログイン状態を確認してください。必要に応じて再ログインして、もう一度お試しください。"
-          : "作品を検索できませんでした。通信状況を確認して、もう一度お試しください。";
+          : "作品を検索できませんでした。通信状況を確認して、もう一度お試しください。");
         const box = document.getElementById("titleSuggestions");
         box.replaceChildren(message);
         box.dataset.searchState = state;
@@ -7147,8 +7157,8 @@ body:has(#detailView:not(.hidden)) { padding-bottom: 0 !important; }
           return { status: request.status };
         } catch (err) {
           if (!context.isCurrent()) return { status: "cancelled" };
-          request.status = ["network-error", "http-error", "edge-error", "response-error", "auth-error"].includes(err?.tmdbFailure) ? err.tmdbFailure : "response-error";
-          showTitleSearchMessage(request.status);
+          request.status = ["network-error", "http-error", "edge-error", "response-error", "auth-error", "rate-limit", "tmdb-rate-limit", "service-unavailable"].includes(err?.tmdbFailure) ? err.tmdbFailure : "response-error";
+          showTitleSearchMessage(request.status, err);
           return { status: request.status };
         } finally {
           clearTimeout(request.timeout);
@@ -7499,9 +7509,9 @@ body:has(#detailView:not(.hidden)) { padding-bottom: 0 !important; }
           if (context && !context.isCurrent()) return { status: "cancelled" };
           console.error(err);
           statusEl.textContent =
-            err?.tmdbFailure === "auth-error"
+            tmdbRateLimitMessage(err) || (err?.tmdbFailure === "auth-error"
               ? "ログイン状態を確認してください。必要に応じて再ログインして、もう一度お試しください。"
-              : "通信エラーが発生しました。時間をおいてもう一度お試しください";
+              : "通信エラーが発生しました。時間をおいてもう一度お試しください");
           statusEl.className = "text-sm mt-1.5 text-red-600";
           return { status: "failed" };
         }
@@ -11101,7 +11111,15 @@ body:has(#detailView:not(.hidden)) { padding-bottom: 0 !important; }
             throw tmdbRequestError("network-error");
           }
           ensureCurrent();
-          const httpError = () => tmdbRequestError(response.status === 401 ? "auth-error" : "http-error", response.status);
+          const httpError = (body = null) => {
+            const kind = response.status === 401 ? "auth-error"
+              : response.status === 429 && body?.code === "RATE_LIMITED" ? "rate-limit"
+              : response.status === 429 && body?.code === "TMDB_RATE_LIMITED" ? "tmdb-rate-limit"
+              : response.status === 503 && body?.code === "RATE_LIMIT_UNAVAILABLE" ? "service-unavailable" : "http-error";
+            const error = tmdbRequestError(kind, response.status);
+            if (Number.isSafeInteger(body?.retryAfterSeconds) && body.retryAfterSeconds > 0 && body.retryAfterSeconds <= 86400) error.retryAfterSeconds = body.retryAfterSeconds;
+            return error;
+          };
           let data;
           try { data = await response.json(); }
           catch (error) {
@@ -11111,7 +11129,7 @@ body:has(#detailView:not(.hidden)) { padding-bottom: 0 !important; }
             throw tmdbRequestError("response-error");
           }
           ensureCurrent();
-          if (!response.ok) throw httpError();
+          if (!response.ok) throw httpError(data);
           return data;
         };
         return await Promise.race([request(), aborted]);
