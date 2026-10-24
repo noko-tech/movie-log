@@ -4687,6 +4687,7 @@ body:has(#detailView:not(.hidden)) { padding-bottom: 0 !important; }
       let restoreBackupInSupabase = null;
       let getBackupRestoreSession = null;
       let backupRestoreRunning = false;
+      let authenticatedTmdbRequest = null;
 
       // TMDbはSupabase Edge Function経由で取得
       const TMDB_FUNCTION_URL =
@@ -7066,27 +7067,8 @@ body:has(#detailView:not(.hidden)) { padding-bottom: 0 !important; }
       }
 
       async function callTmdbFunction(payload, signal) {
-        let response;
-        try {
-          response = await fetch(TMDB_FUNCTION_URL, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-            signal,
-          });
-        } catch (error) {
-          if (error?.name === "AbortError") throw error;
-          throw tmdbRequestError("network-error");
-        }
-        let data;
-        try { data = await response.json(); }
-        catch (error) {
-          if (!response.ok) throw tmdbRequestError("http-error", response.status);
-          if (error?.name === "AbortError") throw error;
-          throw tmdbRequestError("response-error");
-        }
-        if (!response.ok) throw tmdbRequestError("http-error", response.status);
-        return data;
+        if (!authenticatedTmdbRequest) throw tmdbRequestError("auth-error", 401);
+        return authenticatedTmdbRequest(payload, signal);
       }
 
       function cancelTitleSearch() {
@@ -7113,6 +7095,7 @@ body:has(#detailView:not(.hidden)) { padding-bottom: 0 !important; }
         message.setAttribute("aria-live", "polite");
         message.textContent = state === "empty" ? "該当する作品が見つかりませんでした。"
           : state === "timeout" ? "検索に時間がかかっています。もう一度お試しください。"
+          : state === "auth-error" ? "ログイン状態を確認してください。必要に応じて再ログインして、もう一度お試しください。"
           : "作品を検索できませんでした。通信状況を確認して、もう一度お試しください。";
         const box = document.getElementById("titleSuggestions");
         box.replaceChildren(message);
@@ -7164,7 +7147,7 @@ body:has(#detailView:not(.hidden)) { padding-bottom: 0 !important; }
           return { status: request.status };
         } catch (err) {
           if (!context.isCurrent()) return { status: "cancelled" };
-          request.status = ["network-error", "http-error", "edge-error", "response-error"].includes(err?.tmdbFailure) ? err.tmdbFailure : "response-error";
+          request.status = ["network-error", "http-error", "edge-error", "response-error", "auth-error"].includes(err?.tmdbFailure) ? err.tmdbFailure : "response-error";
           showTitleSearchMessage(request.status);
           return { status: request.status };
         } finally {
@@ -7516,7 +7499,9 @@ body:has(#detailView:not(.hidden)) { padding-bottom: 0 !important; }
           if (context && !context.isCurrent()) return { status: "cancelled" };
           console.error(err);
           statusEl.textContent =
-            "通信エラーが発生しました。時間をおいてもう一度お試しください";
+            err?.tmdbFailure === "auth-error"
+              ? "ログイン状態を確認してください。必要に応じて再ログインして、もう一度お試しください。"
+              : "通信エラーが発生しました。時間をおいてもう一度お試しください";
           statusEl.className = "text-sm mt-1.5 text-red-600";
           return { status: "failed" };
         }
@@ -7672,6 +7657,7 @@ body:has(#detailView:not(.hidden)) { padding-bottom: 0 !important; }
     const logout = document.getElementById("authLogoutBtn");
     const logoutMessage = document.getElementById("authLogoutMessage");
     let client = null;
+    const tmdbAuthRequests = new Set();
     let signupMode = false;
     let busy = false;
     let authenticated = false;
@@ -10930,6 +10916,7 @@ body:has(#detailView:not(.hidden)) { padding-bottom: 0 !important; }
       const wasAuthenticated = authenticated;
       const nextUserId = signedIn ? session.user.id : null;
       if (!signedIn || autoRestoreSessionUserId !== nextUserId) {
+        cancelAuthenticatedTmdbRequests();
         cancelNewFormDetails();
         autoSyncMetadataCheckedUsers.clear();
         autoSyncMetadataSessionVersion += 1;
@@ -11042,6 +11029,9 @@ body:has(#detailView:not(.hidden)) { padding-bottom: 0 !important; }
     logout.addEventListener("click", async () => {
       if (!client || logout.disabled) return;
       logout.disabled = true;
+      cancelAuthenticatedTmdbRequests();
+      cancelTitleSearch();
+      cancelNewFormDetails();
       logoutMessage.classList.add("hidden");
       try {
         const { error } = await client.auth.signOut({ scope: "local" });
@@ -11060,6 +11050,77 @@ body:has(#detailView:not(.hidden)) { padding-bottom: 0 !important; }
         logout.disabled = false;
       }
     });
+
+    function cancelAuthenticatedTmdbRequests() {
+      for (const controller of tmdbAuthRequests) controller.abort();
+      tmdbAuthRequests.clear();
+    }
+
+    // 既存clientのセッションをリクエスト内だけで利用し、JWTを外へ保存しない。
+    authenticatedTmdbRequest = async (payload, signal) => {
+      const userId = autoRestoreSessionUserId;
+      const sessionVersion = autoSyncMetadataSessionVersion;
+      if (!client || !authenticated || !userId || logout.disabled) throw tmdbRequestError("auth-error", 401);
+      const controller = new AbortController();
+      const abortError = () => new DOMException("Request cancelled", "AbortError");
+      const ensureCurrent = () => {
+        if (controller.signal.aborted || !authenticated || logout.disabled
+          || autoRestoreSessionUserId !== userId || autoSyncMetadataSessionVersion !== sessionVersion) throw abortError();
+      };
+      const onAbort = () => controller.abort();
+      let rejectAborted;
+      const onRequestAbort = () => rejectAborted(abortError());
+      const aborted = new Promise((_, reject) => { rejectAborted = reject; });
+      controller.signal.addEventListener("abort", onRequestAbort, { once: true });
+      signal?.addEventListener("abort", onAbort, { once: true });
+      if (signal?.aborted) controller.abort();
+      tmdbAuthRequests.add(controller);
+      try {
+        const request = async () => {
+          ensureCurrent();
+          let sessionResult;
+          try { sessionResult = await client.auth.getSession(); }
+          catch (_) { ensureCurrent(); throw tmdbRequestError("auth-error", 401); }
+          ensureCurrent();
+          const session = sessionResult.data?.session;
+          if (sessionResult.error || session?.user?.id !== userId || typeof session?.access_token !== "string"
+            || !session.access_token || (Number.isFinite(session.expires_at) && session.expires_at <= Date.now() / 1000)) {
+            throw tmdbRequestError("auth-error", 401);
+          }
+          let response;
+          try {
+            response = await fetch(TMDB_FUNCTION_URL, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}`, apikey: publishableKey },
+              body: JSON.stringify(payload),
+              signal: controller.signal,
+            });
+          } catch (error) {
+            ensureCurrent();
+            if (error?.name === "AbortError") throw error;
+            throw tmdbRequestError("network-error");
+          }
+          ensureCurrent();
+          const httpError = () => tmdbRequestError(response.status === 401 ? "auth-error" : "http-error", response.status);
+          let data;
+          try { data = await response.json(); }
+          catch (error) {
+            ensureCurrent();
+            if (!response.ok) throw httpError();
+            if (error?.name === "AbortError") throw error;
+            throw tmdbRequestError("response-error");
+          }
+          ensureCurrent();
+          if (!response.ok) throw httpError();
+          return data;
+        };
+        return await Promise.race([request(), aborted]);
+      } finally {
+        tmdbAuthRequests.delete(controller);
+        signal?.removeEventListener("abort", onAbort);
+        controller.signal.removeEventListener("abort", onRequestAbort);
+      }
+    };
 
     async function initializeAuth() {
       const returnError = new URLSearchParams(location.hash.slice(1)).has("error") || new URLSearchParams(location.search).has("error");
