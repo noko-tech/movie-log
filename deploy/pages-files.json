@@ -1,0 +1,17 @@
+{
+  "files": [
+    "index.html",
+    "assets/login-newspaper-mobile-frame.png",
+    "assets/lucide-LICENSE.txt",
+    "assets/movie-log-filmstrip-no-image.svg",
+    "assets/paper-attached.webp",
+    "assets/paper-header-repaired.png",
+    "assets/paper-natural-1920.png",
+    "assets/paper-tone-preview.png",
+    "assets/watchtime-line2.png",
+    "assets/ヴィンテージ映画新聞コラージュ枠.png"
+  ],
+  "ignored_references": {
+    "assets/watchtime-accent.png": "Deleted legacy mask. The mobile (max-width: 1023px) and desktop (min-width: 1024px) rules override it with watchtime-line2.png. Keep index.html unchanged; verify the effective masks and requests in the browser tests."
+  }
+}
