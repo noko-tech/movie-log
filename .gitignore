@@ -1,0 +1,42 @@
+# macOS
+.DS_Store
+
+# Local secrets and environment files
+.env
+.env.*
+*.env
+*.env.*
+.envrc
+
+# Supabase CLI temporary files
+/supabase/.temp/
+
+# Dependencies and logs
+node_modules/
+logs/
+*.log
+*.log.*
+
+# Database backup files (do not ignore all SQL or JSON files)
+*.dump
+*.backup
+*.bak
+*.sql.gz
+*.sql.bz2
+*.sql.xz
+*.sql.zip
+/backup/
+/backups/
+/db-backups/
+/database-backups/
+/backup*.sql
+/dump*.sql
+/*-backup*.sql
+/*-dump*.sql
+/movie-log-backup-*.json
+
+# Disk images and backup bundles
+*.dmg
+*.bundle
+*.sparsebundle
+*.sparseimage
