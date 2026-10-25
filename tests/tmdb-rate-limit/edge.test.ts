@@ -1,5 +1,8 @@
 // @ts-nocheck
 import { fixture, uidA, uidB } from "./fixtures.mjs";
+// Existing invocation defaults to tmdb; a second CLI argument selects tmdb-v2.
+const functionName = Deno.args[1] || "tmdb";
+if (!["tmdb", "tmdb-v2"].includes(functionName)) throw Error("Invalid test Function target");
 const f = await fixture();
 const originalGet = Deno.env.get,
   originalServe = Deno.serve,
@@ -19,7 +22,7 @@ globalThis.setTimeout = (fn, delay, ...args) =>
     ...args,
   );
 await import(
-  new URL("../../supabase/functions/tmdb/index.ts", import.meta.url).href
+  new URL(`../../supabase/functions/${functionName}/index.ts`, import.meta.url).href
 );
 Deno.serve = originalServe;
 const reports = [];
@@ -32,7 +35,7 @@ const request = (
   options = {},
 ) =>
   handler(
-    new Request("https://edge.test.invalid/tmdb", {
+    new Request(`https://edge.test.invalid/${functionName}`, {
       method: options.method || "POST",
       headers: {
         "Content-Type": "application/json",
@@ -354,6 +357,7 @@ Deno.test("summary", () => {
       Deno.args[0],
       JSON.stringify(
         {
+          functionName,
           tests: reports,
           scope:
             "Actual Function and SDK, crypto-verifying mock Auth and mock rate store; runtime networking denied",

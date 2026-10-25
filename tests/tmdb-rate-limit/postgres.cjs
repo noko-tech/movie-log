@@ -18,6 +18,8 @@ const { Pool } = dependency("pg"),
   { createClient } = dependency("@supabase/supabase-js");
 const root = path.resolve(__dirname, "../.."),
   work = fs.mkdtempSync(path.join(os.tmpdir(), "movie-log-rate-pg-"));
+const functionName = process.env.MOVIE_LOG_TEST_FUNCTION || "tmdb";
+assert(["tmdb", "tmdb-v2"].includes(functionName), "Invalid test Function target");
 const pgBin = process.env.MOVIE_LOG_TEST_PG_BIN,
   postgrestBin = process.env.MOVIE_LOG_TEST_POSTGREST;
 assert(
@@ -759,7 +761,7 @@ const existingSnapshot = async () =>
   const vm = require("node:vm"),
     { stripTypeScriptTypes } = require("node:module");
   const edgeSource = fs.readFileSync(
-    path.join(root, "supabase/functions/tmdb/index.ts"),
+    path.join(root, "supabase/functions", functionName, "index.ts"),
     "utf8",
   ).replace(/^import[^\n]+\n/, "");
   vm.runInNewContext(stripTypeScriptTypes(edgeSource), {
@@ -786,7 +788,7 @@ const existingSnapshot = async () =>
     jwt = tokens.authenticated,
   ) =>
     edgeHandler(
-      new Request("https://edge.test.invalid/tmdb", {
+      new Request(`https://edge.test.invalid/${functionName}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -926,6 +928,7 @@ const existingSnapshot = async () =>
     path.join(work, "results.json"),
     JSON.stringify(
       {
+        functionName,
         tests: results,
         productionRequests: 0,
         scope:
