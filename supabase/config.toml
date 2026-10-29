@@ -1,0 +1,9 @@
+# Local project identifier, not a production project ref or credential.
+project_id = "movie-log"
+
+# Only tmdb-v2 is configured here. Do not deploy all Functions.
+# The platform check is OFF; auth.getUser(jwt) in the handler remains mandatory.
+[functions.tmdb-v2]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/tmdb-v2/index.ts"

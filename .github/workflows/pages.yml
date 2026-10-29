@@ -1,4 +1,4 @@
-name: Publish Movie Log (manual)
+name: Publish Movie Log to Pages (manual)
 
 "on":
   workflow_dispatch:
@@ -23,41 +23,20 @@ jobs:
           ref: ${{ github.sha }}
           persist-credentials: false
 
-      - name: Prepare and inspect the legacy public file
-        id: public_files
-        shell: bash
+      - name: Test the public file boundary
+        run: python3 -B -m unittest discover -s tests/pages -p 'test_*.py' -v
+
+      - name: Build and inspect the public files
+        env:
+          PAGES_OUTPUT: ${{ runner.temp }}/movie-log-pages
         run: |
-          set -euo pipefail
-          python3 -B - <<'PY'
-          import os
-          from pathlib import Path
-          import shutil
-          import tempfile
-
-          source = Path("index.html")
-          if source.is_symlink() or not source.is_file() or source.stat().st_size == 0:
-              raise SystemExit("index.html must be a non-empty regular file.")
-
-          output = Path(tempfile.mkdtemp(prefix="movie-log-legacy-pages-", dir=os.environ["RUNNER_TEMP"]))
-          target = output / "index.html"
-          shutil.copyfile(source, target)
-
-          if sorted(entry.name for entry in output.iterdir()) != ["index.html"]:
-              raise SystemExit("Unexpected files or directories in the public artifact.")
-          if target.is_symlink() or not target.is_file() or target.stat().st_nlink != 1:
-              raise SystemExit("The public artifact must contain one regular file without links.")
-          if target.read_bytes() != source.read_bytes():
-              raise SystemExit("The public index.html differs from the source.")
-
-          print("Public file: index.html")
-          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as result:
-              result.write(f"path={output}\n")
-          PY
+          python3 -B scripts/build_pages.py --output "$PAGES_OUTPUT"
+          python3 -B scripts/build_pages.py --output "$PAGES_OUTPUT" --verify-only
 
       - name: Upload only the inspected directory
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
-          path: ${{ steps.public_files.outputs.path }}
+          path: ${{ runner.temp }}/movie-log-pages
 
   deploy:
     if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' }}
