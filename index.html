@@ -1889,6 +1889,18 @@ html:not([data-auth-state="authenticated"]) body { padding-bottom: 0 !important;
 #authView .auth-submit::after { content: ""; position: absolute; top: 50%; right: 18px; width: 20px; height: 20px; transform: translateY(-50%); pointer-events: none; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231c1c1c' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12h14m-6-6 6 6-6 6'/%3E%3C/svg%3E") center / contain no-repeat; }
 #authView .auth-submit.movie-press { --movie-press-distance: var(--auth-press-distance); --movie-press-hover-distance: 0px; --movie-press-rest-shadow: 4px 4px 0 var(--auth-ink); --movie-press-hover-shadow: var(--movie-press-rest-shadow); --movie-press-down-shadow: none; }
 #authView .auth-switch { display: block; min-height: 44px; margin: 16px auto 0; padding: 8px 4px; background: transparent; color: var(--auth-muted); font: inherit; font-size: 14px; text-decoration: underline; text-underline-offset: 4px; cursor: pointer; }
+/* LOGINの下影4pxを含め、「または」の区切り全体から見える上下の余白を12pxに揃える。 */
+#authView .auth-divider { display: flex; align-items: center; gap: 12px; width: 56%; margin: 16px auto 12px; color: var(--auth-muted); font-size: 12px; line-height: 18px; }
+#authView .auth-divider::before,
+#authView .auth-divider::after { content: ""; flex: 1; height: 1px; background: rgba(28,28,28,.3); }
+#authView .auth-google { display: flex; align-items: center; justify-content: center; gap: 12px; box-sizing: border-box; width: 56%; min-height: 52px; margin: 0 auto; padding: 10px 12px; border: 1px solid var(--auth-ink); border-radius: 4px; background: #fff; box-shadow: 4px 4px 0 var(--auth-ink); color: #1f1f1f; font: 500 14px/20px "Arial", "IBM Plex Sans JP", sans-serif; cursor: pointer; }
+#authView .auth-google svg { flex: 0 0 20px; width: 20px; height: 20px; }
+#authView .auth-google:not(:disabled):hover { background: #f8f9fa; }
+#authGoogleLabel { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#authView .auth-invite-note { margin: 0; color: var(--auth-muted); font-size: 11px; line-height: 18px; text-align: center; }
+#authForm:has(#authGoogleBtn:not([hidden])) #authSwitchBtn { margin-top: 10px; }
+#authConfirmField:not([hidden]) ~ .auth-divider,
+#authConfirmField:not([hidden]) ~ .auth-invite-note { display: none; }
 #authView button:focus-visible { outline: 2px solid var(--auth-ink); outline-offset: 4px; }
 #authView button:disabled { opacity: .6; cursor: wait; }
 #authView .auth-submit:disabled { padding-inline: 12px; }
@@ -1936,6 +1948,8 @@ html:not([data-auth-state="authenticated"]) body { padding-bottom: 0 !important;
   #authView .auth-editorial { padding-left: 10px; font-size: 11px; letter-spacing: .04em; }
   #authView h2 { font-size: 30px; }
   #authView .auth-submit { width: 76%; min-width: 180px; }
+  #authView .auth-google,
+  #authView .auth-divider { width: 76%; min-width: 180px; }
 }
 @media (max-width: 374px) {
   #authView { --auth-divider-height: 36px; }
@@ -3968,7 +3982,13 @@ body:has(#detailView:not(.hidden)) { padding-bottom: 0 !important; }
               </div>
             </div>
             <button id="authSubmitBtn" type="submit" class="auth-submit">LOGIN</button>
+            <p class="auth-divider"><span>または</span></p>
+            <button id="authGoogleBtn" type="button" class="auth-google" aria-busy="false">
+              <svg viewBox="0 0 48 48" aria-hidden="true" focusable="false"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5Z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65Z"/><path fill="#FBBC05" d="M10.53 28.59A14.4 14.4 0 0 1 9.75 24c0-1.59.27-3.13.76-4.59l-7.98-6.19A23.9 23.9 0 0 0 0 24c0 3.87.93 7.53 2.56 10.78l7.97-6.19Z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.91-5.8l-7.73-6c-2.15 1.45-4.92 2.3-8.18 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48Z"/></svg>
+              <span id="authGoogleLabel">Googleでログイン</span>
+            </button>
             <button id="authSwitchBtn" type="button" class="auth-switch">新規登録はこちら</button>
+            <p class="auth-invite-note">現在、新規登録は招待制です</p>
           </form>
           <p id="authMessage" role="status" aria-live="polite" hidden></p>
           <button id="authRetryBtn" type="button" class="auth-switch" hidden>再読み込みして試す</button>
@@ -7663,6 +7683,8 @@ body:has(#detailView:not(.hidden)) { padding-bottom: 0 !important; }
     const confirmPassword = document.getElementById("authPasswordConfirm");
     const submit = document.getElementById("authSubmitBtn");
     const switchButton = document.getElementById("authSwitchBtn");
+    const googleButton = document.getElementById("authGoogleBtn");
+    const googleLabel = document.getElementById("authGoogleLabel");
     const message = document.getElementById("authMessage");
     const logout = document.getElementById("authLogoutBtn");
     const logoutMessage = document.getElementById("authLogoutMessage");
@@ -7671,6 +7693,9 @@ body:has(#detailView:not(.hidden)) { padding-bottom: 0 !important; }
     let signupMode = false;
     let busy = false;
     let authenticated = false;
+    let googlePending = false;
+    let authReady = false;
+    const googleAttemptKey = "movieLog.googleOAuthStartedAt";
 
     // BEGIN new movie Supabase RPC save (Supabase is primary for new movies)
     function nullableMovieInteger(value, min = Number.MIN_SAFE_INTEGER, max = Number.MAX_SAFE_INTEGER) {
@@ -10912,13 +10937,16 @@ body:has(#detailView:not(.hidden)) { padding-bottom: 0 !important; }
       confirmPassword.value = "";
       submit.textContent = signup ? "SIGN UP" : "LOGIN";
       switchButton.textContent = signup ? "ログインへ戻る" : "新規登録はこちら";
+      googleButton.hidden = signup;
       showMessage();
     }
 
     function setBusy(value) {
       busy = value;
       form.querySelectorAll("input, button").forEach((element) => { element.disabled = value; });
-      submit.textContent = value ? "PROCESSING..." : signupMode ? "SIGN UP" : "LOGIN";
+      submit.textContent = value && !googlePending ? "PROCESSING..." : signupMode ? "SIGN UP" : "LOGIN";
+      googleLabel.textContent = googlePending ? "Googleに移動しています…" : "Googleでログイン";
+      googleButton.setAttribute("aria-busy", String(googlePending));
     }
 
     function applySession(session) {
@@ -10974,6 +11002,82 @@ body:has(#detailView:not(.hidden)) { padding-bottom: 0 !important; }
       // 許可済みのlocalhost以外は、設定済みの本番URLへ戻す。
       return location.origin === "http://localhost:8000" ? "http://localhost:8000/" : siteUrl;
     }
+
+    function googleRedirectUrl() {
+      // 現在のメール認証が想定する2つのURLだけを使う。未知のローカルURLを本番へ戻さない。
+      if (location.origin === "http://localhost:8000" && ["/", "/index.html"].includes(location.pathname)) return "http://localhost:8000/";
+      const production = new URL(siteUrl);
+      if (location.origin === production.origin && [production.pathname, `${production.pathname}index.html`].includes(location.pathname)) return siteUrl;
+      return null;
+    }
+
+    function googleAttempt(start = false) {
+      // 認証情報は保存しない。戻る操作の判定用に、このタブへ開始時刻だけを残す。
+      try {
+        if (start) { sessionStorage.setItem(googleAttemptKey, String(Date.now())); return true; }
+        const age = Date.now() - Number(sessionStorage.getItem(googleAttemptKey));
+        sessionStorage.removeItem(googleAttemptKey);
+        return age >= 0 && age < 15 * 60 * 1000;
+      } catch (_) { return false; }
+    }
+
+    function authReturnError() {
+      const query = new URLSearchParams(location.search);
+      const hash = new URLSearchParams(location.hash.slice(1));
+      const hasError = [query, hash].some((params) => ["error", "error_code", "error_description"].some((key) => params.has(key)));
+      if (!hasError) return null;
+      const code = hash.get("error_code") || query.get("error_code");
+      const error = hash.get("error") || query.get("error");
+      // 外部から来た説明文は表示・記録せず、固定文に変換する。
+      if (code === "otp_expired" || code === "otp_disabled") return "確認リンクを利用できませんでした。期限切れの場合は新しい確認メールのリンクを開いてください。";
+      if (error === "access_denied" && code === "provider_error") return "Googleログインがキャンセルされたか、許可されませんでした。もう一度お試しください。";
+      return "Googleログインを完了できませんでした。新規登録には招待が必要です。招待されたGoogleアカウントか確認して、もう一度お試しください。";
+    }
+
+    function clearAuthReturnError() {
+      const url = new URL(location.href);
+      const hash = new URLSearchParams(url.hash.slice(1));
+      for (const key of ["error", "error_code", "error_description", "error_uri"]) {
+        url.searchParams.delete(key);
+        hash.delete(key);
+      }
+      url.hash = hash.toString();
+      try { history.replaceState(history.state, "", url); } catch (_) { /* 表示は固定文だけに限定する。 */ }
+    }
+
+    googleButton.addEventListener("click", async () => {
+      if (busy || !client || authenticated || signupMode) return;
+      const redirectTo = googleRedirectUrl();
+      if (!redirectTo) {
+        showMessage("このURLからGoogleログインを開始できません。対応するURLで開き直してください。");
+        return;
+      }
+      showMessage("Googleの画面へ移動しています…", "success");
+      googlePending = true;
+      setBusy(true);
+      googleAttempt(true);
+      try {
+        // 追加スコープ、offline access、独自のGoogle SDKは使わない。
+        const { data, error } = await client.auth.signInWithOAuth({ provider: "google", options: { redirectTo } });
+        if (error || !data?.url) throw new Error("OAuth start failed");
+        // SDKが移動を開始する。離脱するまでは二重操作を防ぎ、セッションを自作しない。
+      } catch (_) {
+        googleAttempt();
+        googlePending = false;
+        setBusy(false);
+        showMessage("Googleログインを開始できませんでした。通信環境を確認して、もう一度お試しください。");
+        googleButton.focus();
+      }
+    });
+
+    window.addEventListener("pageshow", (event) => {
+      // Google画面からブラウザーの「戻る」で復帰した場合（bfcacheを含む）。
+      if (!authReady || !event.persisted || !googlePending || authenticated) return;
+      googleAttempt();
+      googlePending = false;
+      setBusy(false);
+      showMessage("Googleログインを完了していません。もう一度お試しください。");
+    });
 
     switchButton.addEventListener("click", () => {
       if (!busy) setMode(!signupMode);
@@ -11141,7 +11245,8 @@ body:has(#detailView:not(.hidden)) { padding-bottom: 0 !important; }
     };
 
     async function initializeAuth() {
-      const returnError = new URLSearchParams(location.hash.slice(1)).has("error") || new URLSearchParams(location.search).has("error");
+      const returnError = authReturnError();
+      const returningFromGoogle = googleAttempt();
       try {
         if (!window.supabase?.createClient) throw new Error("Auth client unavailable");
         client = window.supabase.createClient(projectUrl, publishableKey, {
@@ -11152,12 +11257,16 @@ body:has(#detailView:not(.hidden)) { padding-bottom: 0 !important; }
         const { data, error } = await client.auth.getSession();
         if (error) throw error;
         applySession(data.session);
-        if (returnError && !data.session) showMessage("確認リンクを利用できませんでした。期限切れの場合は新しい確認メールのリンクを開いてください。");
+        if (returnError && !data.session) showMessage(returnError);
+        else if (returningFromGoogle && !data.session) showMessage("Googleログインを完了していません。もう一度お試しください。");
       } catch (error) {
         applySession(null);
-        showMessage(returnError ? "確認リンクを利用できませんでした。メール内のリンクを確認してください。" : "ログイン状態を確認できませんでした。通信環境を確認して、もう一度お試しください。");
+        showMessage(returnError || "ログイン状態を確認できませんでした。通信環境を確認して、もう一度お試しください。");
         if (!client) setBusy(true);
         document.getElementById("authRetryBtn").hidden = false;
+      } finally {
+        authReady = true;
+        if (returnError) clearAuthReturnError();
       }
     }
 
