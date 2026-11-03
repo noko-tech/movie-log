@@ -40,3 +40,6 @@ logs/
 *.bundle
 *.sparsebundle
 *.sparseimage
+# Supabase local working files
+supabase/.branches/
+supabase/snippets/

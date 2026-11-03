@@ -7,3 +7,12 @@ project_id = "movie-log"
 enabled = true
 verify_jwt = false
 entrypoint = "./functions/tmdb-v2/index.ts"
+[auth]
+site_url = "http://127.0.0.1:8000"
+additional_redirect_urls = ["http://127.0.0.1:8000"]
+
+[auth.external.google]
+enabled = true
+client_id = "421547998733-upjfes8uspda4hbh28bmr34e33lneeha.apps.googleusercontent.com"
+secret = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_SECRET)"
+skip_nonce_check = false
