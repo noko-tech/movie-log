@@ -43,3 +43,7 @@ logs/
 # Supabase local working files
 supabase/.branches/
 supabase/snippets/
+# Local SQL backup files
+supabase/movie_log_create_function.sql
+supabase/movie_log_update_function.sql
+supabase/movie_log_delete_function.sql
